@@ -2,6 +2,8 @@
 
 #include <glad/glad.h>
 #include <vector>
+#include <unordered_map>
+#include <string>
 
 #include "shader.hpp"
 
@@ -9,6 +11,7 @@ class shader_program
 {
 private:
     GLuint shader_program_id;
+    std::unordered_map<std::string, GLint> uniforms;
 
 public:
     shader_program(std::vector<GLuint> shader_ids) : shader_program_id(glCreateProgram())
@@ -37,5 +40,13 @@ public:
 
     GLuint get_id() {
         return shader_program_id;
+    }
+
+    void add_uniform(const std::string& uniform_name) {
+        uniforms[uniform_name] = glGetUniformLocation(get_id(), uniform_name.c_str());
+    }
+
+    GLint get_uniform_location(const std::string& uniform_name) {
+        return uniforms[uniform_name];
     }
 };

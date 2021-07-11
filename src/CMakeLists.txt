@@ -2,7 +2,7 @@ include_directories(${CudaNBodySimulation_SOURCE_DIR}/include)
 
 find_package(CUDAToolkit)
 
-add_executable(nbodySimulation main.cpp)
+add_executable(nbodySimulation main.cpp camera.cpp)
 set_target_properties(nbodySimulation PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(nbodySimulation PROPERTIES CUDA_ARCHITECTURES 75)
 
