@@ -34,7 +34,7 @@ public:
         }
     }
 
-    GLuint get_id() {
+    GLuint get_id() const {
         return shader_id;
     }
 

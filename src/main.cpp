@@ -12,8 +12,22 @@
 #include "camera.hpp"
 #include "graphics_settings.hpp"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void process_input(GLFWwindow *window);
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void process_input(GLFWwindow *window)
+{
+    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+}
+
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+// ---------------------------------------------------------------------------------------------
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and 
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
+}
 
 GLFWwindow* initialize_glfw() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -92,28 +106,22 @@ int main()
         return -1;
     }
 
-    // shader<GL_VERTEX_SHADER> circle_vertex_shader("shaders/circle_vertex.glsl");
-    // shader<GL_FRAGMENT_SHADER> circle_fragment_shader("shaders/circle_fragment.glsl");
-    // shader_program circle_shader({circle_vertex_shader.get_id(), circle_fragment_shader.get_id()});
-    // circle_vertex_shader.release();
-    // circle_fragment_shader.release();
+    shader<GL_VERTEX_SHADER> body_vertex_shader("shaders/body_vertex.glsl");
+    shader<GL_FRAGMENT_SHADER> body_fragment_shader("shaders/body_fragment.glsl");
+    shader_program body_shader({body_vertex_shader.get_id(), body_fragment_shader.get_id()});
+    body_vertex_shader.release();
+    body_fragment_shader.release();
 
-    shader<GL_VERTEX_SHADER> test_vertex_shader("shaders/body_vertex.glsl");
-    shader<GL_FRAGMENT_SHADER> test_fragment_shader("shaders/body_fragment.glsl");
-    shader_program test_shader({test_vertex_shader.get_id(), test_fragment_shader.get_id()});
-    test_vertex_shader.release();
-    test_fragment_shader.release();
-
-    test_shader.add_uniform("model");
-    test_shader.add_uniform("normal_model");
-    test_shader.add_uniform("view_projection");
-    test_shader.add_uniform("light_pos");
-    test_shader.add_uniform("view_pos");
+    body_shader.add_uniform("model");
+    body_shader.add_uniform("view");
+    body_shader.add_uniform("projection");
+    body_shader.add_uniform("normal_model_view");
+    body_shader.add_uniform("light_pos");
 
     std::vector<vertex> vertices;
     std::vector<unsigned int> indices;
 
-    generateSphereMesh(vertices, indices, 16, 32);
+    generateSphereMesh(vertices, indices, 8, 8);
 
     unsigned int VBO, VAO, EBO;
     init_sphere_buffers(VBO, VAO, EBO, vertices, indices);
@@ -157,32 +165,21 @@ int main()
         glClearColor(0.9f, 0.9f, 0.9f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        test_shader.use();
+        body_shader.use();
+
+        cam.set_pos({0, 0, 1});
 
         glm::mat4 model(1.0f);
-        // model = glm::scale(model, {0.1f, 0.1f, 0.1f});
-        // model = glm::rotate(model, (float)newTime, {0, 1, 0});
-        // cam.set_target({3*std::sin(newTime), 0, -3});
-        // cam.set_pos({5*std::sin(newTime), 0, 5*std::cos(newTime)});
-        glm::mat4 vp_matrix = cam.get_projection_matrix() * cam.get_view_matrix();
+        const glm::mat4 &view = cam.get_view_matrix();
+        const glm::mat4 &projection = cam.get_projection_matrix();
 
-        // for (int i = 0; i < 4; i++) {
-        //     for (int j = 0; j < 4; j++) {
-        //         std::cout << mvp[i][j] << " ";
-        //     }
-        //     std::cout << std::endl;
-        // }
-        // break;
+        body_shader.set_mvp(model, view, projection);
+        glm::mat3 normal_model_view = glm::transpose(glm::inverse(glm::mat3(cam.get_view_matrix() * model)));
+        glUniformMatrix3fv(body_shader.get_uniform_location("normal_model_view"), 1, GL_FALSE, &normal_model_view[0][0]);
 
-        glUniformMatrix4fv(test_shader.get_uniform_location("view_projection"), 1, GL_FALSE, &vp_matrix[0][0]);
-        glUniformMatrix4fv(test_shader.get_uniform_location("model"), 1, GL_FALSE, &model[0][0]);
-        glm::mat3 normal_model_view = glm::transpose(glm::inverse(glm::mat3(model)));
-        glUniformMatrix3fv(test_shader.get_uniform_location("normal_model"), 1, GL_FALSE, &normal_model_view[0][0]);
-
-        glm::vec3 light_pos {(float)std::sin(newTime)*5, 0, 2};
-        glUniform3f(test_shader.get_uniform_location("light_pos"), light_pos.x, light_pos.y, light_pos.z);
-
-        glUniform3f(test_shader.get_uniform_location("view_pos"), cam.get_pos().x, cam.get_pos().y, cam.get_pos().z);
+        glm::vec3 light_world_pos {0, 2, 2};
+        glm::vec3 light_pos = glm::vec3(view * glm::vec4(light_world_pos, 1.0f));
+        glUniform3f(body_shader.get_uniform_location("light_pos"), light_pos.x, light_pos.y, light_pos.z);
 
         glBindVertexArray(VAO);
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, 2);
@@ -199,21 +196,4 @@ int main()
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
-}
-
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
-void process_input(GLFWwindow *window)
-{
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-}
-
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and 
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
 }

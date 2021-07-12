@@ -5,6 +5,10 @@
 #include <unordered_map>
 #include <string>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "shader.hpp"
 
 class shader_program
@@ -38,7 +42,7 @@ public:
         glUseProgram(shader_program_id);
     }
 
-    GLuint get_id() {
+    GLuint get_id() const {
         return shader_program_id;
     }
 
@@ -46,7 +50,13 @@ public:
         uniforms[uniform_name] = glGetUniformLocation(get_id(), uniform_name.c_str());
     }
 
-    GLint get_uniform_location(const std::string& uniform_name) {
-        return uniforms[uniform_name];
+    GLint get_uniform_location(const std::string& uniform_name) const {
+        return uniforms.at(uniform_name);
+    }
+
+    void set_mvp(const glm::mat4 &model, const glm::mat4 &view, const glm::mat4 &projection) {
+        glUniformMatrix4fv(get_uniform_location("model"), 1, GL_FALSE, &model[0][0]);
+        glUniformMatrix4fv(get_uniform_location("view"), 1, GL_FALSE, &view[0][0]);
+        glUniformMatrix4fv(get_uniform_location("projection"), 1, GL_FALSE, &projection[0][0]);
     }
 };

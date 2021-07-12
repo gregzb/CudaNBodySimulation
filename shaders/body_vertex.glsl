@@ -10,14 +10,17 @@ out vec3 normal_out;
 out vec3 frag_pos;
 
 uniform mat4 model;
-uniform mat3 normal_model;
-uniform mat4 view_projection;
+uniform mat4 view;
+uniform mat4 projection;
+
+uniform mat3 normal_model_view;
 
 void main()
 {
     vec4 model_transformed = model * vec4(pos, 1.0f) + vec4(offset, 0.0f);
-    gl_Position = view_projection * model_transformed;
+    vec4 view_transformed = view * model_transformed;
+    gl_Position = projection * view_transformed;
     vertex_color = vec4(color, 1.0f);
-    normal_out = normal_model*normal;
-    frag_pos = vec3(model_transformed);
+    normal_out = normal_model_view*normal;
+    frag_pos = vec3(view_transformed);
 }
