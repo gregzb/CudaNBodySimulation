@@ -16,7 +16,8 @@ class camera {
     camera(float fov_, const glm::vec3 &pos_);
     camera(float fov_, const glm::vec3 &pos_, const glm::vec3 &target_);
 
-    glm::mat4 get_vp_matrix();
+    glm::mat4 get_view_matrix();
+    glm::mat4 get_projection_matrix();
 
     void set_pos(const glm::vec3 &pos_);
     glm::vec3 get_pos();

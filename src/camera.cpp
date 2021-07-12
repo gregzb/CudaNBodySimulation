@@ -13,10 +13,14 @@ camera::camera(float fov_, const glm::vec3 &pos_, const glm::vec3 &target_) : fo
 
 }
 
-glm::mat4 camera::get_vp_matrix() {
+glm::mat4 camera::get_view_matrix() {
     glm::mat4 view = glm::lookAt(pos, target, {0, 1, 0}); // make sure to initialize matrix to identity matrix first
-    glm::mat4 projection = glm::perspective(fov, (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.01f, 1000000.0f);
-    return projection * view;
+    return view;
+}
+
+glm::mat4 camera::get_projection_matrix() {
+    glm::mat4 projection = glm::perspective(fov, (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    return projection;
 }
 
 void camera::set_pos(const glm::vec3 &pos_) {

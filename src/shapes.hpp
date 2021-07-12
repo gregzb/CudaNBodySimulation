@@ -43,7 +43,7 @@ void generateSphereMesh(std::vector<T> &vertices, std::vector<unsigned int> &ind
 
     vertices.clear();
     for (unsigned i = 0; i < points.size(); i++) {
-        vertices.emplace_back(points[i]);
+        vertices.emplace_back(points[i], points[i]);
     }
 
     //merge all thetasteps into one at phistep = 0 and phistep = phiSteps
