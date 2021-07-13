@@ -9,10 +9,5 @@
 struct body {
     glm::vec3 pos;
     glm::vec3 vel;
-    glm::vec3 acc;
     float mass;
-
-    inline body() : pos(), vel(), acc(), mass(1) {
-        
-    }
 };

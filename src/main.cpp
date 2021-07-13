@@ -2,6 +2,11 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <random>
+#include <cmath>
+
+#include <glm/gtc/random.hpp>
+#include <glm/gtx/norm.hpp>
 
 #include "shader.hpp"
 #include "shader_program.hpp"
@@ -11,6 +16,8 @@
 #include "utils.hpp"
 #include "camera.hpp"
 #include "graphics_settings.hpp"
+#include "body.hpp"
+#include "nbody_simulation.hpp"
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
@@ -126,11 +133,54 @@ int main()
     unsigned int VBO, VAO, EBO;
     init_sphere_buffers(VBO, VAO, EBO, vertices, indices);
 
-    unsigned int buffer;
-    glGenBuffers(1, &buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    std::vector<float> dat{2, 0, -3, 1, 0, 0, -2, 0, -3, 0, 0, 1};
-    glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_STATIC_DRAW);
+    std::vector<body> bodies;
+
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    std::mt19937 gen(0); // keep it reproducible for now
+    std::uniform_real_distribution<float> radius_distrib(1, 2);
+    std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
+    std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
+
+    glm::vec3 center(0, 0, 0);
+    bodies.push_back({center, {0, 0, 0}, 10000000});
+
+    float initial_velocity_mag = 0.02;
+
+    for (int i = 0; i < 1000; i++) {
+        float r = radius_distrib(gen);
+        float phi = phi_distrib(gen);
+        float theta = theta_distrib(gen);
+        glm::vec3 pos(r*std::cos(theta)*std::sin(phi), r*std::sin(theta)*std::sin(phi), r*std::cos(phi));
+        glm::vec3 normal(glm::normalize(pos-center));
+
+        float epsilon = 0.01;
+
+        glm::vec3 another;
+        while(glm::length2(cross(another=glm::sphericalRand(1.0f), normal)) < epsilon);
+
+        glm::vec3 vector_on_plane = glm::normalize(cross(normal, another)) * initial_velocity_mag;
+
+        bodies.push_back({pos, vector_on_plane, 0.01});
+    }
+
+    nbody_simulation simulation(bodies, 1.0f);
+    simulation.init();
+
+    unsigned int instance_buffer;
+    glGenBuffers(1, &instance_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
+    // std::vector<float> dat{2, 0, -3, .2, .4, 1, -2, 0, -3, 0.2, 0.4, 1};
+    std::vector<float> dat;
+    for(const auto &body : bodies) {
+        dat.push_back(body.pos.x);
+        dat.push_back(body.pos.y);
+        dat.push_back(body.pos.z);
+        dat.push_back(0.2);
+        dat.push_back(0.4);
+        dat.push_back(1);
+    }
+    glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_DYNAMIC_DRAW);
 
     glBindVertexArray(VAO);
 
@@ -146,7 +196,7 @@ int main()
 
     enable_gl_settings();
 
-    camera cam(glm::radians(75.0f), {0, 0, 0}, {0, 0, -1});
+    camera cam(glm::radians(60.0f), {0, 0, 0}, {0, 0, 0});
 
     double lastTime = glfwGetTime();
 
@@ -156,6 +206,7 @@ int main()
     {
         double newTime = glfwGetTime();
         double dt = newTime-lastTime;
+        // std::cout << dt << std::endl;
         // input
         // -----
         process_input(window);
@@ -167,9 +218,11 @@ int main()
 
         body_shader.use();
 
-        cam.set_pos({0, 0, 1});
+        // cam.set_pos({5.5*std::sin(newTime), 0, 5.5*std::cos(newTime)});
+        cam.set_pos({0, 0, 5.5});
 
         glm::mat4 model(1.0f);
+        model = glm::scale(model, {0.03f, 0.03f, 0.03f});
         const glm::mat4 &view = cam.get_view_matrix();
         const glm::mat4 &projection = cam.get_projection_matrix();
 
@@ -177,12 +230,46 @@ int main()
         glm::mat3 normal_model_view = glm::transpose(glm::inverse(glm::mat3(cam.get_view_matrix() * model)));
         glUniformMatrix3fv(body_shader.get_uniform_location("normal_model_view"), 1, GL_FALSE, &normal_model_view[0][0]);
 
-        glm::vec3 light_world_pos {0, 2, 2};
+        glm::vec3 light_world_pos {0, 8, 8};
         glm::vec3 light_pos = glm::vec3(view * glm::vec4(light_world_pos, 1.0f));
         glUniform3f(body_shader.get_uniform_location("light_pos"), light_pos.x, light_pos.y, light_pos.z);
 
         glBindVertexArray(VAO);
-        glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, 2);
+
+        simulation.step();
+
+        std::cout << simulation.get_energy() << std::endl;
+
+        glm::vec3 red(1, 0.2, 0.2);
+        glm::vec3 blue(0.2, 0.4, 1);
+
+        glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
+        // std::vector<float> dat{2, 0, -3, .2, .4, 1, -2, 0, -3, 0.2, 0.4, 1};
+        std::vector<float> dat;
+        for(const auto &body : simulation.get_bodies()) {
+            dat.push_back(body.pos.x);
+            dat.push_back(body.pos.y);
+            dat.push_back(body.pos.z);
+            float mag = glm::length(body.vel);
+            float mixer = glm::clamp(mag*25, 0.0f, 1.0f);
+            glm::vec3 color(glm::mix(blue, red, mixer));
+            dat.push_back(color.r);
+            dat.push_back(color.g);
+            dat.push_back(color.b);
+        }
+        glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_DYNAMIC_DRAW);
+
+        glBindVertexArray(VAO);
+
+        // glEnableVertexAttribArray(2);
+        // glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)0);
+        // glVertexAttribDivisor(2, 1);
+
+        // glEnableVertexAttribArray(3);
+        // glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)(sizeof(float)*3));
+        // glVertexAttribDivisor(3, 1);
+
+        glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, dat.size()/6);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------

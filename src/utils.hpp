@@ -8,12 +8,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-std::ostream& operator<<(std::ostream &stream, const glm::vec3 &vec) {
+inline std::ostream& operator<<(std::ostream &stream, const glm::vec3 &vec) {
     stream <<  "{" << vec.x << " " << vec.y << " " << vec.z << "}";
     return stream;
 }
 
-std::string fileToString(std::string file_path)
+inline std::string fileToString(std::string file_path)
 {
     std::ifstream file(file_path);
     std::string contents;
