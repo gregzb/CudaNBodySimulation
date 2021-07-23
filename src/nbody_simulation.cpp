@@ -10,7 +10,7 @@ nbody_simulation::nbody_simulation(const std::vector<body> &bodies_, float time_
 
 void nbody_simulation::calculcate_accelerations() {
     const float G = 6.67430f*std::pow(10.0f, -11);
-    const float epsilon = 0.000001f;
+    const float epsilon = 0.0000001f;
 
     potential_energy = 0;
 
@@ -38,12 +38,12 @@ void nbody_simulation::step() {
     kinetic_energy = 0;
     for (unsigned i = 0; i < bodies.size(); i++) {
         bodies[i].vel += accelerations[i]*time_scale*half;
-        float mag = glm::length(bodies[i].vel);
-        kinetic_energy += mag*mag*bodies[i].mass/2;
         bodies[i].pos += bodies[i].vel*time_scale;
     }
     calculcate_accelerations();
     for (unsigned i = 0; i < bodies.size(); i++) {
+        float mag = glm::length(bodies[i].vel);
+        kinetic_energy += mag*mag*bodies[i].mass/2;
         bodies[i].vel += accelerations[i]*time_scale*half;
     }
     time_steps++;

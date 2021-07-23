@@ -1,3 +1,7 @@
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -41,6 +45,7 @@ GLFWwindow* initialize_glfw() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE); // single buffering, inherently disables vsync?
 
     // glfw window creation
     // --------------------
@@ -93,6 +98,37 @@ void enable_gl_settings() {
     // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 }
 
+void initBodies(std::vector<body> &bodies) {
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    std::mt19937 gen(0); // keep it reproducible for now
+    std::uniform_real_distribution<float> radius_distrib(1, 2);
+    std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
+    std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
+
+    glm::vec3 center(0, 0, 0);
+    bodies.push_back({center, {0, 0, 0}, 10000000});
+
+    float initial_velocity_mag = 0.02;
+
+    for (int i = 0; i < 100; i++) {
+        float r = radius_distrib(gen);
+        float phi = phi_distrib(gen);
+        float theta = theta_distrib(gen);
+        glm::vec3 pos(r*std::cos(theta)*std::sin(phi), r*std::sin(theta)*std::sin(phi), r*std::cos(phi));
+        glm::vec3 normal(glm::normalize(pos-center));
+
+        float epsilon = 0.01;
+
+        glm::vec3 another;
+        while(glm::length2(cross(another=glm::sphericalRand(1.0f), normal)) < epsilon);
+
+        glm::vec3 vector_on_plane = glm::normalize(cross(normal, another)) * initial_velocity_mag;
+
+        bodies.push_back({pos, vector_on_plane, 0.01});
+    }
+}
+
 int main()
 {
     // glfw: initialize and configure
@@ -100,7 +136,7 @@ int main()
     glfwInit();
 
     GLFWwindow* window;
-    if (!(window=initialize_glfw())) {
+    if (!(window = initialize_glfw())) {
         std::cout << "Failed to create GLFW window" << std::endl;
         return -1;
     }
@@ -112,6 +148,21 @@ int main()
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 460");
 
     shader<GL_VERTEX_SHADER> body_vertex_shader("shaders/body_vertex.glsl");
     shader<GL_FRAGMENT_SHADER> body_fragment_shader("shaders/body_fragment.glsl");
@@ -134,43 +185,14 @@ int main()
     init_sphere_buffers(VBO, VAO, EBO, vertices, indices);
 
     std::vector<body> bodies;
+    initBodies(bodies);
 
-    // std::random_device rd;
-    // std::mt19937 gen(rd());
-    std::mt19937 gen(0); // keep it reproducible for now
-    std::uniform_real_distribution<float> radius_distrib(1, 2);
-    std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
-    std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
-
-    glm::vec3 center(0, 0, 0);
-    bodies.push_back({center, {0, 0, 0}, 10000000});
-
-    float initial_velocity_mag = 0.02;
-
-    for (int i = 0; i < 1000; i++) {
-        float r = radius_distrib(gen);
-        float phi = phi_distrib(gen);
-        float theta = theta_distrib(gen);
-        glm::vec3 pos(r*std::cos(theta)*std::sin(phi), r*std::sin(theta)*std::sin(phi), r*std::cos(phi));
-        glm::vec3 normal(glm::normalize(pos-center));
-
-        float epsilon = 0.01;
-
-        glm::vec3 another;
-        while(glm::length2(cross(another=glm::sphericalRand(1.0f), normal)) < epsilon);
-
-        glm::vec3 vector_on_plane = glm::normalize(cross(normal, another)) * initial_velocity_mag;
-
-        bodies.push_back({pos, vector_on_plane, 0.01});
-    }
-
-    nbody_simulation simulation(bodies, 1.0f);
+    nbody_simulation simulation(bodies, 0.1f);
     simulation.init();
 
     unsigned int instance_buffer;
     glGenBuffers(1, &instance_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
-    // std::vector<float> dat{2, 0, -3, .2, .4, 1, -2, 0, -3, 0.2, 0.4, 1};
     std::vector<float> dat;
     for(const auto &body : bodies) {
         dat.push_back(body.pos.x);
@@ -200,15 +222,54 @@ int main()
 
     double lastTime = glfwGetTime();
 
+    double frame_time = 0;
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
     {
         double newTime = glfwGetTime();
         double dt = newTime-lastTime;
+        while(dt < (1/900.0)) {
+            newTime = glfwGetTime();
+            dt = newTime-lastTime;
+        }
         // std::cout << dt << std::endl;
         // input
         // -----
+
+        glfwPollEvents();
+        // glfwWaitEventsTimeout(0.015);
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+        {
+            static float time_step = 1.0f;
+            static ImVec4 highlight_color(0.2f, 0.9f, 0.2f, 1.0f);
+
+            ImGui::Begin("Control Panel");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("Use this panel to control properties of the simulation");               // Display some text (you can use a format strings too)
+            // ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+            // ImGui::Checkbox("Another Window", &show_another_window);
+
+            ImGui::SliderFloat("Time Step", &time_step, 0.1f, 10.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::ColorEdit3("Highlight Color", (float*)&highlight_color); // Edit 3 floats representing a color
+
+            if (ImGui::Button("Highlight Random Body")) {
+                std::cout << "highlighting!" << std::endl;
+            }
+            //     counter++;
+            // ImGui::SameLine();
+            // ImGui::Text("counter = %d", counter);
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::End();
+        }
+
         process_input(window);
 
         // render
@@ -244,7 +305,6 @@ int main()
         glm::vec3 blue(0.2, 0.4, 1);
 
         glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
-        // std::vector<float> dat{2, 0, -3, .2, .4, 1, -2, 0, -3, 0.2, 0.4, 1};
         std::vector<float> dat;
         for(const auto &body : simulation.get_bodies()) {
             dat.push_back(body.pos.x);
@@ -271,10 +331,12 @@ int main()
 
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, dat.size()/6);
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
-        glfwPollEvents();
 
         lastTime = newTime;
     }

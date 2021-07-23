@@ -10,3 +10,4 @@ set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 
 add_subdirectory(src)
 add_subdirectory(glad)
+add_subdirectory(imgui)
