@@ -14,7 +14,10 @@ class nbody_simulation
 {
 public:
     enum class CalculationBackend {
-        NAIVE_CPU, BARNES_HUT_CPU, NAIVE_GPU, BARNES_HUT_GPU
+        NAIVE_CPU = 0,
+        BARNES_HUT_CPU = 1,
+        NAIVE_GPU = 2,
+        BARNES_HUT_GPU = 3
     };
 
 private:
@@ -28,7 +31,7 @@ private:
     std::vector<glm::vec3> accelerations;
 
     CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
-    
+
     void naive_cpu_calculcate_accelerations();
     void barnes_hut_cpu_calculcate_accelerations();
     void naive_gpu_calculcate_accelerations();

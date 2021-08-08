@@ -210,8 +210,6 @@ int main()
     float time_scale = 0.1f;
 
     nbody_simulation simulation(bodies, time_scale);
-    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
-    simulation.init();
 
     unsigned int instance_buffer;
     glGenBuffers(1, &instance_buffer);
@@ -258,6 +256,12 @@ int main()
 
     float body_size = 1.0f;
 
+    int backend_int = static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU);
+    float barnes_hut_factor = 0.7f;
+
+    bool sim_running = false;
+    bool prev_sim_running = sim_running;
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -268,9 +272,6 @@ int main()
             newTime = glfwGetTime();
             dt = newTime-lastTime;
         }
-        // std::cout << dt << std::endl;
-        // input
-        // -----
 
         glfwPollEvents();
         // glfwWaitEventsTimeout(0.015);
@@ -281,15 +282,11 @@ int main()
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
         {
-            ImGui::Begin("Control Panel");                          // Create a window called "Hello, world!" and append into it.
+            ImGui::Begin("Simulation Control Panel");
 
-            ImGui::Text("Use this panel to control properties of the simulation");               // Display some text (you can use a format strings too)
-            // ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            // ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             ImGui::SliderFloat("Body Size", &body_size, 0.1f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-            ImGui::ColorEdit3("Highlight Color", (float*)&highlight_color); // Edit 3 floats representing a color
+            ImGui::ColorEdit3("Highlight Color", (float*)&highlight_color);
 
             if (ImGui::Button("Highlight Random Body")) {
                 selected_body_idx = distr(gen);
@@ -298,11 +295,24 @@ int main()
             if (ImGui::Button("Unselect Body")) {
                 selected_body_idx = -1;
             }
-            //     counter++;
-            // ImGui::SameLine();
-            // ImGui::Text("counter = %d", counter);
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+            ImGui::RadioButton("CPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU)); ImGui::SameLine();
+            ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
+            ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
+            ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
+            ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 2.0f, "%.2f");
+
+            ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+            std::string sim_action = sim_running ? "Stop Simulation" : "Launch Simulation";
+
+            if (ImGui::Button(sim_action.c_str())) {
+                sim_running = !sim_running;
+            }
+
+            ImGui::Text("Application averaging %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
         }
 
@@ -336,10 +346,14 @@ int main()
         glBindVertexArray(VAO);
 
         simulation.set_time_scale(time_scale);
+        simulation.set_backend(static_cast<nbody_simulation::CalculationBackend>(backend_int));
 
-        simulation.step();
-
-        // std::cout << simulation.get_energy() << std::endl;
+        if (sim_running) {
+            if (!prev_sim_running) {
+                simulation.init();
+            }
+            simulation.step();
+        }
 
         glm::vec3 red(1, 0.2, 0.2);
         glm::vec3 blue(0.2, 0.4, 1);
@@ -387,6 +401,7 @@ int main()
         glfwSwapBuffers(window);
 
         lastTime = newTime;
+        prev_sim_running = sim_running;
     }
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
