@@ -7,7 +7,7 @@
 #include <vector>
 #include <array>
 
-#pragma pack(push, 4)
+#pragma pack(push, 1)
 class vertex {
 private:
     // pos[3], normal[3]

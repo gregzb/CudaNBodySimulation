@@ -98,6 +98,37 @@ void enable_gl_settings() {
     // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 }
 
+// void initBodies(std::vector<body> &bodies) {
+//     // std::random_device rd;
+//     // std::mt19937 gen(rd());
+//     std::mt19937 gen(0); // keep it reproducible for now
+//     std::uniform_real_distribution<float> radius_distrib(1, 2);
+//     std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
+//     std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
+
+//     glm::vec3 center(0, 0, 0);
+//     bodies.push_back({center, {0, 0, 0}, 10000000});
+
+//     float initial_velocity_mag = 0.02;
+
+//     for (int i = 0; i < 100; i++) {
+//         float r = radius_distrib(gen);
+//         float phi = phi_distrib(gen);
+//         float theta = theta_distrib(gen);
+//         glm::vec3 pos(r*std::cos(theta)*std::sin(phi), r*std::sin(theta)*std::sin(phi), r*std::cos(phi));
+//         glm::vec3 normal(glm::normalize(pos-center));
+
+//         float epsilon = 0.01;
+
+//         glm::vec3 another;
+//         while(glm::length2(cross(another=glm::sphericalRand(1.0f), normal)) < epsilon);
+
+//         glm::vec3 vector_on_plane = glm::normalize(cross(normal, another)) * initial_velocity_mag;
+
+//         bodies.push_back({pos, vector_on_plane, 0.01});
+//     }
+// }
+
 void initBodies(std::vector<body> &bodies) {
     // std::random_device rd;
     // std::mt19937 gen(rd());
@@ -106,26 +137,15 @@ void initBodies(std::vector<body> &bodies) {
     std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
     std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
 
+    std::uniform_real_distribution<float> square_distrib(-0.4, 0.4);
+
     glm::vec3 center(0, 0, 0);
     bodies.push_back({center, {0, 0, 0}, 10000000});
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 100; i++) {
-        float r = radius_distrib(gen);
-        float phi = phi_distrib(gen);
-        float theta = theta_distrib(gen);
-        glm::vec3 pos(r*std::cos(theta)*std::sin(phi), r*std::sin(theta)*std::sin(phi), r*std::cos(phi));
-        glm::vec3 normal(glm::normalize(pos-center));
-
-        float epsilon = 0.01;
-
-        glm::vec3 another;
-        while(glm::length2(cross(another=glm::sphericalRand(1.0f), normal)) < epsilon);
-
-        glm::vec3 vector_on_plane = glm::normalize(cross(normal, another)) * initial_velocity_mag;
-
-        bodies.push_back({pos, vector_on_plane, 0.01});
+    for (int i = 0; i < 10000; i++) {
+        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), 0}, {0, initial_velocity_mag, 0}, 0.01});
     }
 }
 
@@ -187,7 +207,10 @@ int main()
     std::vector<body> bodies;
     initBodies(bodies);
 
-    nbody_simulation simulation(bodies, 0.1f);
+    float time_scale = 0.1f;
+
+    nbody_simulation simulation(bodies, time_scale);
+    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
     simulation.init();
 
     unsigned int instance_buffer;
@@ -224,13 +247,24 @@ int main()
 
     double frame_time = 0;
 
+    // std::random_device rd; // obtain a random number from hardware
+    // std::mt19937 gen(rd()); // seed the generator
+    std::mt19937 gen(0);
+    std::uniform_int_distribution<> distr(0, bodies.size()-1); // define the range
+
+    int selected_body_idx = -1;
+
+    ImVec4 highlight_color(0.2f, 0.9f, 0.2f, 1.0f);
+
+    float body_size = 1.0f;
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
     {
         double newTime = glfwGetTime();
         double dt = newTime-lastTime;
-        while(dt < (1/900.0)) {
+        while(dt < (1/90.0)) {
             newTime = glfwGetTime();
             dt = newTime-lastTime;
         }
@@ -247,20 +281,22 @@ int main()
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
         {
-            static float time_step = 1.0f;
-            static ImVec4 highlight_color(0.2f, 0.9f, 0.2f, 1.0f);
-
             ImGui::Begin("Control Panel");                          // Create a window called "Hello, world!" and append into it.
 
             ImGui::Text("Use this panel to control properties of the simulation");               // Display some text (you can use a format strings too)
             // ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
             // ImGui::Checkbox("Another Window", &show_another_window);
 
-            ImGui::SliderFloat("Time Step", &time_step, 0.1f, 10.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::SliderFloat("Body Size", &body_size, 0.1f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
             ImGui::ColorEdit3("Highlight Color", (float*)&highlight_color); // Edit 3 floats representing a color
 
             if (ImGui::Button("Highlight Random Body")) {
-                std::cout << "highlighting!" << std::endl;
+                selected_body_idx = distr(gen);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Unselect Body")) {
+                selected_body_idx = -1;
             }
             //     counter++;
             // ImGui::SameLine();
@@ -283,7 +319,9 @@ int main()
         cam.set_pos({0, 0, 5.5});
 
         glm::mat4 model(1.0f);
-        model = glm::scale(model, {0.03f, 0.03f, 0.03f});
+        float base_size = 0.03f;
+        float scaled_size = base_size * body_size;
+        model = glm::scale(model, glm::vec3(scaled_size));
         const glm::mat4 &view = cam.get_view_matrix();
         const glm::mat4 &projection = cam.get_projection_matrix();
 
@@ -297,29 +335,39 @@ int main()
 
         glBindVertexArray(VAO);
 
+        simulation.set_time_scale(time_scale);
+
         simulation.step();
 
-        std::cout << simulation.get_energy() << std::endl;
+        // std::cout << simulation.get_energy() << std::endl;
 
         glm::vec3 red(1, 0.2, 0.2);
         glm::vec3 blue(0.2, 0.4, 1);
 
         glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
         std::vector<float> dat;
-        for(const auto &body : simulation.get_bodies()) {
+        int num_bodies = simulation.get_bodies().size();
+        for (int i = 0; i < num_bodies; i++) {
+            const auto &body = simulation.get_bodies()[i];
             dat.push_back(body.pos.x);
             dat.push_back(body.pos.y);
             dat.push_back(body.pos.z);
             float mag = glm::length(body.vel);
             float mixer = glm::clamp(mag*25, 0.0f, 1.0f);
             glm::vec3 color(glm::mix(blue, red, mixer));
-            dat.push_back(color.r);
-            dat.push_back(color.g);
-            dat.push_back(color.b);
+            if (i == selected_body_idx) {
+                dat.push_back(highlight_color.x*1.25f);
+                dat.push_back(highlight_color.y*1.25f);
+                dat.push_back(highlight_color.z*1.25f);
+            } else {
+                dat.push_back(color.r);
+                dat.push_back(color.g);
+                dat.push_back(color.b);
+            }
         }
         glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_DYNAMIC_DRAW);
 
-        glBindVertexArray(VAO);
+        // glBindVertexArray(VAO);
 
         // glEnableVertexAttribArray(2);
         // glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)0);

@@ -1,4 +1,5 @@
 #include "nbody_simulation.hpp"
+#include <exception>
 
 nbody_simulation::nbody_simulation(float time_scale_) : time_scale(time_scale_) {
 
@@ -8,7 +9,7 @@ nbody_simulation::nbody_simulation(const std::vector<body> &bodies_, float time_
 
 }
 
-void nbody_simulation::calculcate_accelerations() {
+void nbody_simulation::naive_cpu_calculcate_accelerations() {
     const float G = 6.67430f*std::pow(10.0f, -11);
     const float epsilon = 0.0000001f;
 
@@ -25,6 +26,27 @@ void nbody_simulation::calculcate_accelerations() {
                 potential_energy += (-G * bodies[i].mass * bodies[j].mass) / glm::length(r);
             }
         }
+    }
+}
+
+void nbody_simulation::barnes_hut_cpu_calculcate_accelerations() {
+    throw std::runtime_error("Barnes Hut CPU isn't implemented yet.");
+}
+
+void nbody_simulation::calculcate_accelerations() {
+    switch(calculation_backend) {
+        case CalculationBackend::NAIVE_CPU:
+            naive_cpu_calculcate_accelerations();
+            break;
+        case CalculationBackend::BARNES_HUT_CPU:
+            barnes_hut_cpu_calculcate_accelerations();
+            break;
+        case CalculationBackend::NAIVE_GPU:
+            naive_gpu_calculcate_accelerations();
+            break;
+        case CalculationBackend::BARNES_HUT_GPU:
+            barnes_hut_gpu_calculcate_accelerations();
+            break;
     }
 }
 

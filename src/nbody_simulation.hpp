@@ -12,6 +12,11 @@
 
 class nbody_simulation
 {
+public:
+    enum class CalculationBackend {
+        NAIVE_CPU, BARNES_HUT_CPU, NAIVE_GPU, BARNES_HUT_GPU
+    };
+
 private:
     std::vector<body> bodies;
     long long time_steps = 0;
@@ -22,9 +27,16 @@ private:
 
     std::vector<glm::vec3> accelerations;
 
+    CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
+    
+    void naive_cpu_calculcate_accelerations();
+    void barnes_hut_cpu_calculcate_accelerations();
+    void naive_gpu_calculcate_accelerations();
+    void barnes_hut_gpu_calculcate_accelerations();
     void calculcate_accelerations();
 
 public:
+
     nbody_simulation(float time_scale_ = 1.0f);
     nbody_simulation(const std::vector<body> &bodies_, float time_scale_ = 1.0f);
 
@@ -53,5 +65,13 @@ public:
 
     inline const std::vector<body>& get_bodies() {
         return bodies;
+    }
+
+    inline CalculationBackend get_backend() {
+        return calculation_backend;
+    }
+
+    inline void set_backend(CalculationBackend state) {
+        calculation_backend = state;
     }
 };
