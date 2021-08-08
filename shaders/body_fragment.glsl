@@ -17,8 +17,6 @@ void main()
 
     vec3 view_pos = vec3(0, 0, 0);
 
-    // frag_color = vec4(norm, 1.0f);
-
     float ambient_strength = 0.15;
     vec3 ambient = ambient_strength * light_color;
 

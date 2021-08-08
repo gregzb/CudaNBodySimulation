@@ -19,7 +19,7 @@ glm::mat4 camera::get_view_matrix() {
 }
 
 glm::mat4 camera::get_projection_matrix() {
-    glm::mat4 projection = glm::perspective(fov, (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(fov, (float)screen_width / (float)screen_height, 0.1f, 100.0f);
     return projection;
 }
 

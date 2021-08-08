@@ -27,8 +27,9 @@
 // ---------------------------------------------------------------------------------------------------------
 void process_input(GLFWwindow *window)
 {
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
+    }
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -38,6 +39,8 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     // make sure the viewport matches the new window dimensions; note that width and 
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
+    screen_width = width;
+    screen_height = height;
 }
 
 GLFWwindow* initialize_glfw() {
@@ -49,7 +52,7 @@ GLFWwindow* initialize_glfw() {
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "N-Body Simulation", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(screen_width, screen_height, "N-Body Simulation", NULL, NULL);
     if (window == NULL)
     {
         glfwTerminate();
@@ -94,6 +97,8 @@ void enable_gl_settings() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_MULTISAMPLE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 }
@@ -144,7 +149,7 @@ void initBodies(std::vector<body> &bodies) {
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 4000; i++) {
         bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), 0}, {0, initial_velocity_mag, 0}, 0.01});
     }
 }
@@ -196,16 +201,60 @@ int main()
     body_shader.add_uniform("normal_model_view");
     body_shader.add_uniform("light_pos");
 
+    shader<GL_VERTEX_SHADER> highlighter_vertex_shader("shaders/highlighter_vertex.glsl");
+    shader<GL_FRAGMENT_SHADER> highlighter_fragment_shader("shaders/highlighter_fragment.glsl");
+    shader_program highlighter_shader({highlighter_vertex_shader.get_id(), highlighter_fragment_shader.get_id()});
+    highlighter_vertex_shader.release();
+    highlighter_fragment_shader.release();
+
+    highlighter_shader.add_uniform("screen_size");
+    highlighter_shader.add_uniform("highlight_center");
+    highlighter_shader.add_uniform("radii");
+    highlighter_shader.add_uniform("highlight_color");
+
     std::vector<vertex> vertices;
     std::vector<unsigned int> indices;
 
-    generateSphereMesh(vertices, indices, 8, 8);
+    std::vector<glm::vec3> vertex_locations;
+    generateSphereMesh(vertex_locations, indices, 8, 8);
+
+    for (unsigned i = 0; i < vertex_locations.size(); i++) {
+        // position, normal (they're the same for a sphere)
+        vertices.emplace_back(vertex_locations[i], vertex_locations[i]);
+    }
 
     unsigned int VBO, VAO, EBO;
     init_sphere_buffers(VBO, VAO, EBO, vertices, indices);
 
     std::vector<body> bodies;
     initBodies(bodies);
+
+    // std::vector<glm::vec2> screen_vertices{{-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
+    std::vector<float> screen_vertices{-1, -1, 1, -1, 1, 1, -1, 1};
+    std::vector<unsigned int> screen_indices{0, 1, 2, 0, 2, 3};
+
+    unsigned int screen_VBO, screen_VAO, screen_EBO;
+    glGenVertexArrays(1, &screen_VAO);
+    glGenBuffers(1, &screen_VBO);
+    glGenBuffers(1, &screen_EBO);
+
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+    glBindVertexArray(screen_VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, screen_VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*screen_vertices.size(), screen_vertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, screen_EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*screen_indices.size(), screen_indices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float)*2, (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0); 
+
+    glBindVertexArray(0);
+
+
 
     float time_scale = 0.1f;
 
@@ -252,7 +301,8 @@ int main()
 
     int selected_body_idx = -1;
 
-    ImVec4 highlight_color(0.2f, 0.9f, 0.2f, 1.0f);
+    ImVec4 highlight_color(0.2f, 0.9f, 0.2f, 0.5f);
+    glm::vec2 highlight_radii(0.01f, 0.02f);
 
     float body_size = 1.0f;
 
@@ -280,29 +330,42 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // ImGui::ShowDemoWindow();
+
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
         {
             ImGui::Begin("Simulation Control Panel");
 
-            ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-            ImGui::SliderFloat("Body Size", &body_size, 0.1f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-            ImGui::ColorEdit3("Highlight Color", (float*)&highlight_color);
+            if (ImGui::CollapsingHeader("Simulation Settings"))
+            {
+                ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                ImGui::SliderFloat("Body Size", &body_size, 0.1f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
 
-            if (ImGui::Button("Highlight Random Body")) {
-                selected_body_idx = distr(gen);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Unselect Body")) {
-                selected_body_idx = -1;
+                ImGui::Dummy(ImVec2(0.0f, 5.0f));
+
+                ImGui::RadioButton("CPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU)); ImGui::SameLine();
+                ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
+                ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
+                ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
+                ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 2.0f, "%.2f");
             }
 
             ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-            ImGui::RadioButton("CPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU)); ImGui::SameLine();
-            ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
-            ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
-            ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
-            ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 2.0f, "%.2f");
+            if (ImGui::CollapsingHeader("Highlight Settings"))
+            {
+                ImGui::ColorEdit4("Highlight Color", (float*)&highlight_color);
+                ImGui::SliderFloat("Inner Radius", &highlight_radii.x, 0.0f, 0.25f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                ImGui::SliderFloat("Outer Radius", &highlight_radii.y, 0.0f, 0.25f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+                if (ImGui::Button("Highlight Random Body")) {
+                    selected_body_idx = distr(gen);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Unselect Body")) {
+                    selected_body_idx = -1;
+                }
+            }
 
             ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
@@ -325,7 +388,6 @@ int main()
 
         body_shader.use();
 
-        // cam.set_pos({5.5*std::sin(newTime), 0, 5.5*std::cos(newTime)});
         cam.set_pos({0, 0, 5.5});
 
         glm::mat4 model(1.0f);
@@ -381,17 +443,22 @@ int main()
         }
         glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_DYNAMIC_DRAW);
 
-        // glBindVertexArray(VAO);
-
-        // glEnableVertexAttribArray(2);
-        // glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)0);
-        // glVertexAttribDivisor(2, 1);
-
-        // glEnableVertexAttribArray(3);
-        // glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)(sizeof(float)*3));
-        // glVertexAttribDivisor(3, 1);
-
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, dat.size()/6);
+
+        glm::vec4 target_location{-2, -2, 0, 1};
+        if (selected_body_idx >= 0) {
+            target_location = projection * view * glm::vec4(simulation.get_bodies()[selected_body_idx].pos, 1.0f);
+            target_location /= target_location.w;
+        }
+
+        highlighter_shader.use();
+        glUniform2f(highlighter_shader.get_uniform_location("screen_size"), screen_width, screen_height);
+        glUniform2f(highlighter_shader.get_uniform_location("highlight_center"), target_location.x, target_location.y);
+        glUniform2f(highlighter_shader.get_uniform_location("radii"), highlight_radii.x, highlight_radii.y);
+        glUniform4f(highlighter_shader.get_uniform_location("highlight_color"), highlight_color.x, highlight_color.y, highlight_color.z, highlight_color.w);
+        glBindVertexArray(screen_VAO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glDrawElements(GL_TRIANGLES, screen_indices.size(), GL_UNSIGNED_INT, (void*) 0);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -38,6 +38,9 @@ void nbody_simulation::naive_gpu_calculcate_accelerations() {
     for (int i = 0; i < num_bodies; i++) {
         accelerations[i] = gpu_accelerations[i];
     }
+
+    cudaFree(gpu_accelerations);
+    cudaFree(gpu_bodies);
 }
 
 void nbody_simulation::barnes_hut_gpu_calculcate_accelerations() {
