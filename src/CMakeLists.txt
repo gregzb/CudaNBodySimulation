@@ -1,4 +1,4 @@
-include_directories(${CudaNBodySimulation_SOURCE_DIR}/include ${CudaNBodySimulation_SOURCE_DIR}/imgui ${CudaNBodySimulation_SOURCE_DIR}/thrust)
+include_directories(${CudaNBodySimulation_SOURCE_DIR}/include ${CudaNBodySimulation_SOURCE_DIR}/imgui)
 
 find_package(CUDAToolkit)
 

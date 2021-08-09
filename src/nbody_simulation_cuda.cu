@@ -1,5 +1,9 @@
 #include "nbody_simulation.hpp"
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/sort.h>
+
 __global__ void calculate(glm::vec3* accelerations, body* bodies, int num_bodies) {
     const float G = 6.67430f*std::pow(10.0f, -11);
     const float epsilon = 0.0000001f;
@@ -44,5 +48,21 @@ void nbody_simulation::naive_gpu_calculcate_accelerations() {
 }
 
 void nbody_simulation::barnes_hut_gpu_calculcate_accelerations() {
-    throw std::runtime_error("Barnes Hut GPU isn't implemented yet.");
+    rect root_rect {get_bounding_rect()};
+
+    std::vector<int> keys(bodies.size());
+    for (unsigned i = 0; i < bodies.size(); i++) {
+        const auto &constrained_pos = convert_xy(root_rect, bodies[i].pos.x, bodies[i].pos.y);
+        keys[i] = get_key(constrained_pos.first, constrained_pos.second);
+    }
+
+    thrust::device_vector<int> device_keys = keys;
+    thrust::device_vector<body> device_bodies = bodies;
+
+    thrust::sort_by_key(device_keys.begin(), device_keys.begin() + device_keys.size(), device_bodies.begin());
+
+    thrust::host_vector<int> sorted_keys = device_keys;
+    for (auto val : sorted_keys) {
+        std::cout << val << std::endl;
+    }
 }

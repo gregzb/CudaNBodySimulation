@@ -38,6 +38,17 @@ private:
     void barnes_hut_gpu_calculcate_accelerations();
     void calculcate_accelerations();
 
+    struct rect
+    {
+        float lx, ly, sx, sy;
+    };
+
+    struct node{
+        int start;
+        int end;
+        float mass;
+    };
+
 public:
 
     nbody_simulation(float time_scale_ = 1.0f);
@@ -46,6 +57,15 @@ public:
     void init();
     void step();
     void add_body(const body &body_);
+
+    rect get_bounding_rect() const;
+
+    inline std::pair<float, float> convert_xy(const rect &root_rect, float x, float y) {
+        //between 1 and 2
+        return std::pair<float, float>{(x-root_rect.lx)/root_rect.sx+1, (y-root_rect.ly)/root_rect.sy+1};
+    }
+
+    uint32_t get_key (float x, float y);
 
     inline void set_time_scale(float time_scale_)
     {

@@ -1,8 +1,8 @@
 #include "nbody_simulation.hpp"
-#include <exception>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+
 #include <x86intrin.h>
+
+#include <exception>
 
 nbody_simulation::nbody_simulation(float time_scale_) : time_scale(time_scale_) {
 
@@ -11,6 +11,34 @@ nbody_simulation::nbody_simulation(float time_scale_) : time_scale(time_scale_) 
 nbody_simulation::nbody_simulation(const std::vector<body> &bodies_, float time_scale_ ) : bodies(bodies_), time_scale(time_scale_) {
 
 }
+
+nbody_simulation::rect nbody_simulation::get_bounding_rect() const{
+    float lx, ly, rx, ry;
+    lx = std::numeric_limits<float>::max();
+    ly = std::numeric_limits<float>::max();
+    rx = -std::numeric_limits<float>::max();
+    ry = -std::numeric_limits<float>::max();
+    float eps = std::numeric_limits<float>::epsilon() * 10;
+    for (auto & body : bodies) {
+        lx = std::min(lx, body.pos.x);
+        ly = std::min(ly, body.pos.y);
+        rx = std::max(rx, body.pos.x);
+        ry = std::max(ry, body.pos.y);
+    }
+
+    return rect{lx-eps, ly-eps, rx-lx+eps, ry-ly+eps};
+}
+
+uint32_t nbody_simulation::get_key (float x, float y) {
+    uint32_t x_int = *(uint32_t*)&x;
+    uint32_t y_int = *(uint32_t*)&y;
+
+    constexpr uint32_t mask_x = 0b01010101010101010101010101010101u;
+    constexpr uint32_t mask_y = 0b10101010101010101010101010101010u;
+
+    uint32_t final_value = _pdep_u32(x_int >> (32-9-16), mask_x) | _pdep_u32(y_int >> (32-9-16), mask_y);
+    return final_value;
+};
 
 void nbody_simulation::naive_cpu_calculcate_accelerations() {
     const float G = 6.67430f*std::pow(10.0f, -11);
@@ -33,54 +61,18 @@ void nbody_simulation::naive_cpu_calculcate_accelerations() {
 }
 
 void nbody_simulation::barnes_hut_cpu_calculcate_accelerations() {
-    struct rect
-    {
-        float lx, ly, sx, sy;
-    };
+    rect root_rect {get_bounding_rect()};
 
-    struct node{
-        int start;
-        int end;
-        float mass;
-    };
-
-    float lx, ly, rx, ry;
-    lx = std::numeric_limits<float>::max();
-    ly = std::numeric_limits<float>::max();
-    rx = -std::numeric_limits<float>::max();
-    ry = -std::numeric_limits<float>::max();
-    float eps = std::numeric_limits<float>::epsilon() * 10;
-    for (auto & body : bodies) {
-        lx = std::min(lx, body.pos.x);
-        ly = std::min(ly, body.pos.y);
-        rx = std::max(rx, body.pos.x);
-        ry = std::max(ry, body.pos.y);
-    }
-
-    rect root_rect {lx-eps, ly-eps, rx-lx+eps, ry-ly+eps};
-
-    auto convert_xy = [&root_rect](float x, float y) {
-        //between 1 and 2
-        return std::pair<float, float>{(x-root_rect.lx)/root_rect.sx+1, (y-root_rect.ly)/root_rect.sy+1};
-    };
-
-    auto get_key = [](float x, float y) {
-        uint32_t x_int = *(uint32_t*)&x;
-        uint32_t y_int = *(uint32_t*)&y;
-
-        constexpr uint32_t mask_x = 0b01010101010101010101010101010101u;
-        constexpr uint32_t mask_y = 0b10101010101010101010101010101010u;
-
-        uint32_t final_value = _pdep_u32(x_int >> (32-9-16), mask_x) | _pdep_u32(y_int >> (32-9-16), mask_y);
-        return final_value;
-    };
-
-    thrust::host_vector<int> keys(bodies.size());
+    std::vector<int> keys(bodies.size());
     for (unsigned i = 0; i < bodies.size(); i++) {
-        const auto &constrained_pos = convert_xy(bodies[i].pos.x, bodies[i].pos.y);
+        const auto &constrained_pos = convert_xy(root_rect, bodies[i].pos.x, bodies[i].pos.y);
         keys[i] = get_key(constrained_pos.first, constrained_pos.second);
     }
 
+    // thrust::device_vector<int> device_keys = keys;
+    // thrust::device_vector<body> device_bodies = bodies;
+
+    // thrust::sort_by_key(device_keys.begin(), device_keys.begin() + device_keys.size(), device_bodies.begin());
 }
 
 void nbody_simulation::calculcate_accelerations() {
