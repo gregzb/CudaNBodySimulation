@@ -389,6 +389,8 @@ int main()
         body_shader.use();
 
         cam.set_pos({0, 0, 5.5});
+        // cam.set_pos({glm::sin(newTime) * 5.5f, 0, glm::cos(newTime)*5.5f});
+        // cam.set_target({0, 0, 0});
 
         glm::mat4 model(1.0f);
         float base_size = 0.03f;
