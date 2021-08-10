@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <array>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -32,22 +33,37 @@ private:
 
     CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
 
-    void naive_cpu_calculcate_accelerations();
-    void barnes_hut_cpu_calculcate_accelerations();
-    void naive_gpu_calculcate_accelerations();
-    void barnes_hut_gpu_calculcate_accelerations();
-    void calculcate_accelerations();
+    void naive_cpu_calculate_accelerations();
+    void barnes_hut_cpu_calculate_accelerations();
+    void naive_gpu_calculate_accelerations();
+    void barnes_hut_gpu_calculate_accelerations();
+    void calculate_accelerations();
 
-    struct rect
+    struct rect3d
     {
-        float lx, ly, sx, sy;
+        float lx, ly, lz, sx, sy, sz;
     };
 
     struct node{
-        int start;
-        int end;
-        float mass;
+        std::vector<int> start_index;
+        std::vector<std::array<int, 8>> children;
     };
+
+    template <class NODE, template <class> class CONTAINER>
+    static inline NODE makeNode(int items) {
+        return NODE { CONTAINER<int>(items, -1), CONTAINER<std::array<int, 8>>(items, {-1, -1, -1, -1, -1, -1, -1, -1})};
+    }
+
+    template <class NODE>
+    static inline void add_point_mass(NODE &node_, int idx, const glm::vec3 &com, float mass) {
+        node_.com[idx] = (node_.com[idx] * node_.mass[idx] + com * mass) / (node_.mass[idx] + mass);
+        node_.mass[idx] += mass;
+    }
+
+    template <class NODE>
+    static inline glm::vec3 new_com(NODE &node_, int idx, const glm::vec3 &com, float mass) {
+        return (node_[idx].com * node_[idx].mass + com * mass) / (node_[idx].mass + mass);
+    }
 
 public:
 
@@ -58,14 +74,14 @@ public:
     void step();
     void add_body(const body &body_);
 
-    rect get_bounding_rect() const;
+    rect3d get_bounding_rect() const;
 
-    inline std::pair<float, float> convert_xy(const rect &root_rect, float x, float y) {
+    inline glm::vec3 convert_xyz(const rect3d &root_rect, const glm::vec3 &pos) {
         //between 1 and 2
-        return std::pair<float, float>{(x-root_rect.lx)/root_rect.sx+1, (y-root_rect.ly)/root_rect.sy+1};
+        return glm::vec3{(pos.x-root_rect.lx)/root_rect.sx+1, (pos.y-root_rect.ly)/root_rect.sy+1, (pos.z-root_rect.lz)/root_rect.sz+1};
     }
 
-    uint32_t get_key (float x, float y);
+    uint64_t get_key (float x, float y, float z);
 
     inline void set_time_scale(float time_scale_)
     {

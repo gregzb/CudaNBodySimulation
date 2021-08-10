@@ -3,44 +3,51 @@
 #include <x86intrin.h>
 
 #include <exception>
+#include <algorithm>
 
 nbody_simulation::nbody_simulation(float time_scale_) : time_scale(time_scale_) {
 
 }
 
-nbody_simulation::nbody_simulation(const std::vector<body> &bodies_, float time_scale_ ) : bodies(bodies_), time_scale(time_scale_) {
+nbody_simulation::nbody_simulation(const std::vector<body> &bodies_, float time_scale_ ) : bodies(bodies_), time_scale(time_scale_), accelerations(bodies_.size()){
 
 }
 
-nbody_simulation::rect nbody_simulation::get_bounding_rect() const{
-    float lx, ly, rx, ry;
+nbody_simulation::rect3d nbody_simulation::get_bounding_rect() const{
+    float lx, ly, lz, rx, ry, rz;
     lx = std::numeric_limits<float>::max();
     ly = std::numeric_limits<float>::max();
+    lz = std::numeric_limits<float>::max();
     rx = -std::numeric_limits<float>::max();
     ry = -std::numeric_limits<float>::max();
+    rz = -std::numeric_limits<float>::max();
     float eps = std::numeric_limits<float>::epsilon() * 10;
     for (auto & body : bodies) {
         lx = std::min(lx, body.pos.x);
         ly = std::min(ly, body.pos.y);
+        lz = std::min(lz, body.pos.z);
         rx = std::max(rx, body.pos.x);
         ry = std::max(ry, body.pos.y);
+        rz = std::max(rz, body.pos.z);
     }
 
-    return rect{lx-eps, ly-eps, rx-lx+eps, ry-ly+eps};
+    return rect3d{lx-eps, ly-eps, lz-eps, rx-lx+2*eps, ry-ly+2*eps, rz-lz+2*eps};
 }
 
-uint32_t nbody_simulation::get_key (float x, float y) {
+uint64_t nbody_simulation::get_key (float x, float y, float z) {
     uint32_t x_int = *(uint32_t*)&x;
     uint32_t y_int = *(uint32_t*)&y;
+    uint32_t z_int = *(uint32_t*)&z;
 
-    constexpr uint32_t mask_x = 0b01010101010101010101010101010101u;
-    constexpr uint32_t mask_y = 0b10101010101010101010101010101010u;
+    constexpr uint64_t mask_x = 0b1001001001001001001001001001001001001001001001001001001001001001ull; // 22 ones
+    constexpr uint64_t mask_y = 0b0100100100100100100100100100100100100100100100100100100100100100ull; // 21 ones
+    constexpr uint64_t mask_z = 0b0010010010010010010010010010010010010010010010010010010010010010ull; // 21 ones
 
-    uint32_t final_value = _pdep_u32(x_int >> (32-9-16), mask_x) | _pdep_u32(y_int >> (32-9-16), mask_y);
+    uint64_t final_value = _pdep_u64(x_int >> (32-9-22), mask_x) | _pdep_u64(y_int >> (32-9-21), mask_y) | _pdep_u64(z_int >> (32-9-21), mask_z);
     return final_value;
 };
 
-void nbody_simulation::naive_cpu_calculcate_accelerations() {
+void nbody_simulation::naive_cpu_calculate_accelerations() {
     const float G = 6.67430f*std::pow(10.0f, -11);
     const float epsilon = 0.0000001f;
 
@@ -60,40 +67,64 @@ void nbody_simulation::naive_cpu_calculcate_accelerations() {
     }
 }
 
-void nbody_simulation::barnes_hut_cpu_calculcate_accelerations() {
-    rect root_rect {get_bounding_rect()};
+void nbody_simulation::barnes_hut_cpu_calculate_accelerations() {
+    rect3d root_rect {get_bounding_rect()};
 
-    std::vector<int> keys(bodies.size());
-    for (unsigned i = 0; i < bodies.size(); i++) {
-        const auto &constrained_pos = convert_xy(root_rect, bodies[i].pos.x, bodies[i].pos.y);
-        keys[i] = get_key(constrained_pos.first, constrained_pos.second);
+    int num_bodies = bodies.size();
+
+    using key_body = std::pair<uint64_t, body>;
+    std::vector<key_body> bodies_with_keys;
+    for (int i = 0; i < num_bodies; i++) {
+        const auto &constrained_pos = convert_xyz(root_rect, bodies[i].pos);
+        auto key = get_key(constrained_pos.x, constrained_pos.y, constrained_pos.z);
+        bodies_with_keys.emplace_back(key, bodies[i]);
     }
 
-    // thrust::device_vector<int> device_keys = keys;
-    // thrust::device_vector<body> device_bodies = bodies;
+    std::sort(bodies_with_keys.begin(), bodies_with_keys.end(), [](const key_body &a, const key_body &b){
+        return a.first < b.first;
+    });
 
-    // thrust::sort_by_key(device_keys.begin(), device_keys.begin() + device_keys.size(), device_bodies.begin());
+    std::vector<float> mass(num_bodies);
+    std::vector<glm::vec3> com(num_bodies);
+
+    std::vector<uint64_t> keys(num_bodies);
+    for (int i = 0; i < num_bodies; i++) {
+        keys[i] = bodies_with_keys[i].first;
+        mass[i] = bodies_with_keys[i].second.mass;
+        com[i] = bodies_with_keys[i].second.pos;
+    }
+
+
+
+    std::vector<node> tree;
+    tree.emplace_back(makeNode<node, std::vector>(1));
+    for (const body &body_ : bodies) {
+        add_point_mass(tree[0], 0, body_.pos, body_.mass);
+    }
+
+    tree.emplace_back(makeNode<node, std::vector>(tree.back().start.size() * 8));
+
 }
 
-void nbody_simulation::calculcate_accelerations() {
+void nbody_simulation::calculate_accelerations() {
     switch(calculation_backend) {
         case CalculationBackend::NAIVE_CPU:
-            naive_cpu_calculcate_accelerations();
+            naive_cpu_calculate_accelerations();
             break;
         case CalculationBackend::BARNES_HUT_CPU:
-            barnes_hut_cpu_calculcate_accelerations();
+            barnes_hut_cpu_calculate_accelerations();
             break;
         case CalculationBackend::NAIVE_GPU:
-            naive_gpu_calculcate_accelerations();
+            naive_gpu_calculate_accelerations();
             break;
         case CalculationBackend::BARNES_HUT_GPU:
-            barnes_hut_gpu_calculcate_accelerations();
+            barnes_hut_gpu_calculate_accelerations();
             break;
     }
 }
 
 void nbody_simulation::init() {
-    calculcate_accelerations();
+    calculate_accelerations();
 }
 
 void nbody_simulation::step() {
@@ -104,7 +135,7 @@ void nbody_simulation::step() {
         bodies[i].vel += accelerations[i]*time_scale*half;
         bodies[i].pos += bodies[i].vel*time_scale;
     }
-    calculcate_accelerations();
+    calculate_accelerations();
     for (unsigned i = 0; i < bodies.size(); i++) {
         float mag = glm::length(bodies[i].vel);
         kinetic_energy += mag*mag*bodies[i].mass/2;
@@ -115,4 +146,5 @@ void nbody_simulation::step() {
 
 void nbody_simulation::add_body(const body &body_) {
     bodies.push_back(body_);
+    accelerations.emplace_back();
 }

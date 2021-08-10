@@ -23,6 +23,8 @@
 #include "body.hpp"
 #include "nbody_simulation.hpp"
 
+#include <filesystem>
+
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
 void process_input(GLFWwindow *window)
@@ -149,8 +151,8 @@ void initBodies(std::vector<body> &bodies) {
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 4000; i++) {
-        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), 0}, {0, initial_velocity_mag, 0}, 0.01});
+    for (int i = 0; i < 2000; i++) {
+        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01});
     }
 }
 
@@ -158,6 +160,9 @@ int main()
 {
     // glfw: initialize and configure
     // ------------------------------
+
+    std::cout << "Starting application with cwd: " << std::filesystem::current_path() << std::endl;
+
     glfwInit();
 
     GLFWwindow* window;
@@ -389,8 +394,8 @@ int main()
         body_shader.use();
 
         cam.set_pos({0, 0, 5.5});
-        // cam.set_pos({glm::sin(newTime) * 5.5f, 0, glm::cos(newTime)*5.5f});
-        // cam.set_target({0, 0, 0});
+//        cam.set_pos({glm::sin(newTime) * 5.5f, 0, glm::cos(newTime)*5.5f});
+//        cam.set_target({0, 0, 0});
 
         glm::mat4 model(1.0f);
         float base_size = 0.03f;
@@ -423,7 +428,7 @@ int main()
         glm::vec3 blue(0.2, 0.4, 1);
 
         glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
-        std::vector<float> dat;
+        dat.clear();
         int num_bodies = simulation.get_bodies().size();
         for (int i = 0; i < num_bodies; i++) {
             const auto &body = simulation.get_bodies()[i];

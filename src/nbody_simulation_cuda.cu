@@ -18,7 +18,7 @@ __global__ void calculate(glm::vec3* accelerations, body* bodies, int num_bodies
     }
 }
 
-void nbody_simulation::naive_gpu_calculcate_accelerations() {
+void nbody_simulation::naive_gpu_calculate_accelerations() {
     int num_bodies = bodies.size();
 
     glm::vec3 *gpu_accelerations;
@@ -47,22 +47,19 @@ void nbody_simulation::naive_gpu_calculcate_accelerations() {
     cudaFree(gpu_bodies);
 }
 
-void nbody_simulation::barnes_hut_gpu_calculcate_accelerations() {
-    rect root_rect {get_bounding_rect()};
+void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
+    rect3d root_rect {get_bounding_rect()};
 
-    std::vector<int> keys(bodies.size());
-    for (unsigned i = 0; i < bodies.size(); i++) {
-        const auto &constrained_pos = convert_xy(root_rect, bodies[i].pos.x, bodies[i].pos.y);
-        keys[i] = get_key(constrained_pos.first, constrained_pos.second);
+    int num_bodies = bodies.size();
+
+    std::vector<uint64_t> keys(num_bodies);
+    for (int i = 0; i < num_bodies; i++) {
+        const auto &constrained_pos = convert_xyz(root_rect, bodies[i].pos);
+        keys[i] = get_key(constrained_pos.x, constrained_pos.y, constrained_pos.z);
     }
 
-    thrust::device_vector<int> device_keys = keys;
+    thrust::device_vector<uint64_t> device_keys = keys;
     thrust::device_vector<body> device_bodies = bodies;
 
-    thrust::sort_by_key(device_keys.begin(), device_keys.begin() + device_keys.size(), device_bodies.begin());
-
-    thrust::host_vector<int> sorted_keys = device_keys;
-    for (auto val : sorted_keys) {
-        std::cout << val << std::endl;
-    }
+    thrust::sort_by_key(device_keys.begin(), device_keys.begin() + num_bodies, device_bodies.begin());
 }
