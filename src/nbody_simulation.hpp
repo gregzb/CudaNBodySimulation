@@ -33,6 +33,9 @@ private:
 
     CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
 
+    float barnes_hut_factor = 1.5;
+    int tree_depth = 8;
+
     void naive_cpu_calculate_accelerations();
     void barnes_hut_cpu_calculate_accelerations();
     void naive_gpu_calculate_accelerations();
@@ -46,23 +49,25 @@ private:
 
     struct node{
         std::vector<int> start_index;
-        std::vector<std::array<int, 8>> children;
+        std::vector<int> end_index;
+        std::vector<int> children_index;
+    };
+
+    struct com_mass {
+        glm::dvec3 com;
+        double mass;
     };
 
     template <class NODE, template <class> class CONTAINER>
     static inline NODE makeNode(int items) {
-        return NODE { CONTAINER<int>(items, -1), CONTAINER<std::array<int, 8>>(items, {-1, -1, -1, -1, -1, -1, -1, -1})};
+        return NODE { CONTAINER<int>(items, -1), CONTAINER<int>(items, -1), CONTAINER<int>(items, 0)};
     }
 
-    template <class NODE>
-    static inline void add_point_mass(NODE &node_, int idx, const glm::vec3 &com, float mass) {
-        node_.com[idx] = (node_.com[idx] * node_.mass[idx] + com * mass) / (node_.mass[idx] + mass);
-        node_.mass[idx] += mass;
-    }
+    void add_layer(std::vector<node> &tree, const std::vector<uint64_t> &keys);
+    glm::vec3 calc_acceleration(const std::vector<node> &tree, const std::vector<body> &sorted_bodies, const std::vector<com_mass> &com_mass_, int focus_idx, const rect3d &curr_rect, int layer = 0, int node_idx = 0);
 
-    template <class NODE>
-    static inline glm::vec3 new_com(NODE &node_, int idx, const glm::vec3 &com, float mass) {
-        return (node_[idx].com * node_[idx].mass + com * mass) / (node_[idx].mass + mass);
+    inline static com_mass combine_com(const com_mass &a, const com_mass &b) {
+        return {(a.com * a.mass + b.com * b.mass) / (a.mass + b.mass), a.mass + b.mass};
     }
 
 public:

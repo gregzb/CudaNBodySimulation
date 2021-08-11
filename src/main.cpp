@@ -151,16 +151,13 @@ void initBodies(std::vector<body> &bodies) {
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 2000; i++) {
-        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01});
+    for (int i = 0; i < 20000; i++) {
+        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 1});
     }
 }
 
 int main()
 {
-    // glfw: initialize and configure
-    // ------------------------------
-
     std::cout << "Starting application with cwd: " << std::filesystem::current_path() << std::endl;
 
     glfwInit();

@@ -62,4 +62,5 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
     thrust::device_vector<body> device_bodies = bodies;
 
     thrust::sort_by_key(device_keys.begin(), device_keys.begin() + num_bodies, device_bodies.begin());
+
 }
