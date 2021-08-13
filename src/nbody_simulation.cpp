@@ -84,6 +84,11 @@ void nbody_simulation::add_layer(std::vector<node> &tree, const std::vector<uint
     constexpr uint64_t all_ones_last = 0b1111111111111111111111111111111111111111111111111111111111111110ull;
     constexpr uint64_t three_mask = 0b111ull;
 
+    auto lower_bound_linear = [](std::vector<uint64_t>::const_iterator start, std::vector<uint64_t>::const_iterator end, uint64_t target) {
+        for (; start < end && target < *start; start++);
+        return start;
+    };  // does this throw an error???
+
     int stage = tree.size();
     int sec_last = stage-1;
 
@@ -109,6 +114,7 @@ void nbody_simulation::add_layer(std::vector<node> &tree, const std::vector<uint
             uint64_t search_value = base_value | extension;
             uint64_t search_mask = base_mask | extension_mask;
 
+//            auto found = last_idx - first_idx + 1 > 10000000 ? std::lower_bound(keys.begin()+first_idx, keys.begin()+last_idx+1, search_value) : lower_bound_linear(first_idx, last_idx+1, search_value);
             auto found = std::lower_bound(keys.begin()+first_idx, keys.begin()+last_idx+1, search_value);
             int found_idx = found-keys.begin();
             if (found == keys.begin()+last_idx+1) {
@@ -155,15 +161,20 @@ glm::vec3 nbody_simulation::calc_acceleration(const std::vector<node> &tree, con
         return combine_com(com_mass_[r+1], tmp);
     };
 
+    int start = tree[layer].start_index[node_idx];
+    int end = tree[layer].end_index[node_idx];
+
     const body &curr_body = sorted_bodies[focus_idx];
 
-    com_mass current_com_mass = query_com(tree[layer].start_index[node_idx], tree[layer].end_index[node_idx]);
+    com_mass current_com_mass = query_com(start, end);
 
     float s2 = curr_rect.sx * curr_rect.sx;
     glm::vec3 diff = curr_body.pos - glm::vec3(current_com_mass.com);
     float d2 = glm::dot(diff, diff) + epsilon;
 
-    bool inside = tree[layer].start_index[node_idx] <= focus_idx && focus_idx <= tree[layer].end_index[node_idx];
+    bool inside = start <= focus_idx && focus_idx <= end;
+
+    if (end-start+1 == (int)inside) return {0, 0, 0};
 
     if (s2/d2 < barnes_hut_factor*barnes_hut_factor) {
         com_mass other_com_mass = current_com_mass;

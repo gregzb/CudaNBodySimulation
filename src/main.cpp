@@ -24,6 +24,7 @@
 #include "nbody_simulation.hpp"
 
 #include <filesystem>
+#include <fenv.h>
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
@@ -151,13 +152,14 @@ void initBodies(std::vector<body> &bodies) {
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 20000; i++) {
+    for (int i = 0; i < 100000; i++) {
         bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 1});
     }
 }
 
 int main()
 {
+    feenableexcept(FE_INVALID | FE_OVERFLOW);
     std::cout << "Starting application with cwd: " << std::filesystem::current_path() << std::endl;
 
     glfwInit();
@@ -349,7 +351,7 @@ int main()
                 ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
                 ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
                 ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
-                ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 2.0f, "%.2f");
+                ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 5.0f, "%.2f");
             }
 
             ImGui::Dummy(ImVec2(0.0f, 5.0f));
@@ -412,6 +414,7 @@ int main()
         glBindVertexArray(VAO);
 
         simulation.set_time_scale(time_scale);
+        simulation.set_barnes_hut_factor(barnes_hut_factor);
         simulation.set_backend(static_cast<nbody_simulation::CalculationBackend>(backend_int));
 
         if (sim_running) {

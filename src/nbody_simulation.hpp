@@ -21,6 +21,22 @@ public:
         BARNES_HUT_GPU = 3
     };
 
+    struct rect3d
+            {
+        float lx, ly, lz, sx, sy, sz;
+            };
+
+    struct node{
+        std::vector<int> start_index;
+        std::vector<int> end_index;
+        std::vector<int> children_index;
+    };
+
+    struct com_mass {
+        glm::dvec3 com;
+        double mass;
+    };
+
 private:
     std::vector<body> bodies;
     long long time_steps = 0;
@@ -33,30 +49,14 @@ private:
 
     CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
 
-    float barnes_hut_factor = 1.5;
-    int tree_depth = 8;
+    float barnes_hut_factor = 0.7;
+    int tree_depth = 1;
 
     void naive_cpu_calculate_accelerations();
     void barnes_hut_cpu_calculate_accelerations();
     void naive_gpu_calculate_accelerations();
     void barnes_hut_gpu_calculate_accelerations();
     void calculate_accelerations();
-
-    struct rect3d
-    {
-        float lx, ly, lz, sx, sy, sz;
-    };
-
-    struct node{
-        std::vector<int> start_index;
-        std::vector<int> end_index;
-        std::vector<int> children_index;
-    };
-
-    struct com_mass {
-        glm::dvec3 com;
-        double mass;
-    };
 
     template <class NODE, template <class> class CONTAINER>
     static inline NODE makeNode(int items) {
@@ -93,17 +93,17 @@ public:
         time_scale = time_scale_;
     }
 
-    inline float get_time_scale()
+    inline float get_time_scale() const
     {
         return time_scale;
     }
 
-    inline long long get_time_steps()
+    inline long long get_time_steps() const
     {
         return time_steps;
     }
 
-    inline float get_energy() {
+    inline float get_energy() const{
         return potential_energy + kinetic_energy;
     }
 
@@ -111,11 +111,19 @@ public:
         return bodies;
     }
 
-    inline CalculationBackend get_backend() {
+    inline CalculationBackend get_backend() const{
         return calculation_backend;
     }
 
     inline void set_backend(CalculationBackend state) {
         calculation_backend = state;
+    }
+
+    inline float get_barnes_hut_factor() const {
+        return barnes_hut_factor;
+    }
+
+    inline void set_barnes_hut_factor(float barnes_hut_factor_) {
+        barnes_hut_factor = barnes_hut_factor_;
     }
 };
