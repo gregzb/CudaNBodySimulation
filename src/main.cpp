@@ -316,6 +316,14 @@ int main()
     bool sim_running = false;
     bool prev_sim_running = sim_running;
 
+    simulation.set_time_scale(time_scale);
+    simulation.set_barnes_hut_factor(barnes_hut_factor);
+    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
+
+    simulation.init();
+
+    exit(0);
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))

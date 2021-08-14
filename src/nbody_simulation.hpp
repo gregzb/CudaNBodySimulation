@@ -50,7 +50,7 @@ private:
     CalculationBackend calculation_backend = CalculationBackend::NAIVE_CPU;
 
     float barnes_hut_factor = 0.7;
-    int tree_depth = 1;
+    int tree_depth = 7;
 
     void naive_cpu_calculate_accelerations();
     void barnes_hut_cpu_calculate_accelerations();

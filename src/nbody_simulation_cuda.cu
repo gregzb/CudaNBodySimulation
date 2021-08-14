@@ -12,6 +12,8 @@
 #include <thrust/memory.h>
 #include <thrust/device_new.h>
 
+#include <chrono>
+
 __global__ void calculate(glm::vec3* accelerations, body* bodies, int num_bodies) {
     const float G = 6.67430f*std::pow(10.0f, -11);
     const float epsilon = 0.0000001f;
@@ -189,6 +191,13 @@ __device__ void make_device_node(device_node &d_node, int n) {
     memset(d_node.children_index, 0, n*sizeof(int));
 
     d_node.n = n;
+    printf("Made layer with %d items\n", n);
+}
+
+__device__ void free_device_node(device_node &d_node) {
+    delete[] d_node.start_index;
+    delete[] d_node.end_index;
+    delete[] d_node.children_index;
 }
 
 struct device_initialize_tree {
@@ -196,12 +205,10 @@ struct device_initialize_tree {
     __device__ void operator() (Tuple t) {
         device_node &layer = thrust::get<0>(t);
         int num_bodies = thrust::get<1>(t);
-        make_device_node(layer, 3);
+        make_device_node(layer, 1);
         layer.start_index[0] = 0;
         layer.end_index[0] = num_bodies-1;
         layer.children_index[0] = 1;
-        layer.children_index[1] = 0;
-        layer.children_index[2] = 1;
     }
 };
 
@@ -210,14 +217,70 @@ struct device_initialize_layer {
     __device__ void operator() (Tuple t) {
         device_node &layer = thrust::get<0>(t);
         int new_num_indices = thrust::get<1>(t);
-        make_device_node(layer, new_num_indices);
+        make_device_node(layer, new_num_indices*8);
+//        printf("hi!\n");
     }
 };
 
-struct device_children_iterator {
+struct device_compute_layer {
     template <class Tuple>
-    __device__ int* operator() (Tuple t) {
-        return (thrust::get<0>(t) + thrust::get<1>(t))->children_index;
+    __device__ void operator() (Tuple t) {
+        device_node *tree = thrust::get<0>(t);
+        uint64_t *keys = thrust::get<1>(t);
+        int data = thrust::get<2>(t);
+        int stage = thrust::get<3>(t);
+        int sec_last = stage - 1;
+
+        constexpr uint64_t all_ones = 0b1111111111111111111111111111111111111111111111111111111111111111ull;
+        constexpr uint64_t all_ones_last = 0b1111111111111111111111111111111111111111111111111111111111111110ull;
+        constexpr uint64_t three_mask = 0b111ull;
+
+
+        int idx = data >> 3;
+        int extension_idx = data & 0b111;
+
+        int first_idx = tree[sec_last].start_index[idx];
+        int last_idx = tree[sec_last].end_index[idx];
+        if (first_idx == -1) return;
+
+        uint64_t first_value = keys[first_idx];
+        uint64_t base_mask = all_ones_last << (63 - sec_last*3);
+        uint64_t base_value = first_value & base_mask;
+        int shift_amt = 61 - sec_last*3;
+
+        uint64_t extension = static_cast<uint64_t>(extension_idx) << shift_amt;
+        uint64_t extension_mask = three_mask << shift_amt;
+
+        uint64_t search_value = base_value | extension;
+        uint64_t search_mask = base_mask | extension_mask;
+
+        uint64_t extension_upper = all_ones >> ((sec_last+1)*3);
+        uint64_t search_value_upper = search_value | extension_upper;
+
+        auto found_start = thrust::lower_bound(thrust::seq, keys+first_idx, keys+last_idx+1, search_value);
+        if (found_start == keys+last_idx+1 || (((*found_start) & search_mask) != search_value)) return;
+
+        auto found_end = thrust::upper_bound(thrust::seq, keys+first_idx, keys+last_idx+1, search_value_upper);
+
+        int found_start_idx = found_start - keys;
+        int found_end_idx = found_end - keys;
+
+        int curr_stage_node_idx = (tree[sec_last].children_index[idx]-1) * 8 + extension_idx;
+        tree[stage].start_index[curr_stage_node_idx] = found_start_idx;
+        tree[stage].end_index[curr_stage_node_idx] = found_end_idx-1;
+        tree[stage].children_index[curr_stage_node_idx] = 1;
+
+//        tree[stage].start_index[curr_stage_node_idx] = first_idx;
+//        tree[stage].end_index[curr_stage_node_idx] = last_idx;
+
+
+//        printf("currn: %d, prevd: %d, idx: %d, stage: %d\n", tree[stage].n, tree[stage-1].n, idx, stage);
+    }
+};
+
+struct device_functor_free_node {
+    __device__ void operator() (device_node &d_node) {
+        free_device_node(d_node);
     }
 };
 
@@ -231,12 +294,6 @@ struct device_children_iterator {
 //        layer.children_index[0] = 1;
 //    }
 //};
-
-__device__ void free_device_node(device_node &d_node) {
-    delete[] d_node.start_index;
-    delete[] d_node.end_index;
-    delete[] d_node.children_index;
-}
 
 //__global__ void debug_kernel(int* dat, int n) {
 //    for (int i = 0; i < n; i++) {
@@ -254,7 +311,7 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
 
     static bool called = false;
     if (!called) {
-        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024ll*1024ll*1024ll*1ll); //set limit to 1gb
+        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024ll*1024ll*1024ll*5ll); //set limit to 1gb
     }
     called = true;
 
@@ -293,6 +350,7 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
                      device_initialize_tree());
 
     for (int i = 0; i < tree_depth; i++) {
+        auto start = std::chrono::system_clock::now();
         int stage = i + 1;
         int sec_last = i;
 
@@ -302,11 +360,41 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
         auto device_children_index = thrust::device_pointer_cast(children_index);
 
         thrust::inclusive_scan(device_children_index, device_children_index+prev_n, device_children_index);
+//        int prev_layer_size;
+//        cudaMemcpy(&prev_layer_size, children_index+prev_n);
 //        thrust::device_ptr<int> last_children_idx = thrust::device_new<int>(1);
 //        thrust::transform(thrust::device, children_index+prev_n-1, children_index+prev_n, last_children_idx, );
-        thrust::for_each_n(thrust::make_zip_iterator(thrust::make_tuple(tree.begin()+stage, device_children_index+prev_n-1)),
+        thrust::for_each_n(thrust::make_zip_iterator(thrust::make_tuple(tree.begin()+stage,device_children_index+prev_n-1)),
                            1,
                            device_initialize_layer());
+
+        std::cout << "pre: " << cudaGetErrorString(cudaPeekAtLastError()) << std::endl;
+
+        int *last_children_value_ptr = new int;
+        *last_children_value_ptr = -2;
+        std::cout << "children: " << *last_children_value_ptr << std::endl;
+        cudaMemcpy(last_children_value_ptr, children_index+prev_n-1, sizeof(int), cudaMemcpyDeviceToHost);
+        std::cout << "in: " << cudaGetErrorString(cudaPeekAtLastError()) << std::endl;
+        std::cout << "in: " << cudaGetErrorName(cudaPeekAtLastError()) << std::endl;
+        std::cout << "children: " << *last_children_value_ptr << std::endl;
+
+        int last_children_value = *last_children_value_ptr;
+
+//        auto curr_stage = tree.begin() + stage;
+//        auto prev_stage = tree.begin() + sec_last;
+        device_node *tree_ptr = thrust::raw_pointer_cast(tree.data());
+        auto tree_iterator = thrust::make_constant_iterator(tree_ptr);
+
+        uint64_t *keys_ptr = thrust::raw_pointer_cast(device_keys.data());
+        auto keys_iterator = thrust::make_constant_iterator(keys_ptr);
+        auto idx = thrust::make_counting_iterator(0);
+        auto stage_iterator = thrust::make_constant_iterator(stage);
+        auto zipped_start = thrust::make_zip_iterator(thrust::make_tuple(tree_iterator, keys_iterator, idx, stage_iterator));
+        auto zipped_end = thrust::make_zip_iterator(thrust::make_tuple(tree_iterator+last_children_value*8, keys_iterator+last_children_value*8, idx+last_children_value*8, stage_iterator+last_children_value*8));
+        thrust::for_each(thrust::device, zipped_start, zipped_end, device_compute_layer());
+
+        std::cout << "paralleled: " << (prev_n * 8) << std::endl;
+//        std::cout << "e" << std::endl;
 
 //        auto prev_tree_level_it = tree.begin() + sec_last;
 //        auto transformed_iterator = thrust::make_transform_iterator(prev_tree_level, );
@@ -319,7 +407,13 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
 //        thrust::inclusive_scan(thrust::device, transform_start_iterator, transform_end_iterator, transform_start_iterator);
 
 //        thrust::inclusive_scan(thrust::device, );
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end-start;
+        std::cout << "time for layer " << i << ": " << elapsed_seconds.count() << " s\n";
     }
+
+    thrust::for_each(tree.begin(), tree.end(), device_functor_free_node());
+//    exit(0);
 
 //    thrust::for_each(thrust::make_zip_iterator(thrust::make_tuple(tree.begin(), num_bodies_iterator)), thrust::make_zip_iterator(thrust::make_tuple(tree.begin()+1, num_bodies_iterator+1)), device_initialize_tree);
 
