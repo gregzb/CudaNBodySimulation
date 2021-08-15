@@ -153,7 +153,7 @@ void initBodies(std::vector<body> &bodies) {
     float initial_velocity_mag = 0.02;
 
     for (int i = 0; i < 100000; i++) {
-        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 1});
+        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01});
     }
 }
 
@@ -316,13 +316,13 @@ int main()
     bool sim_running = false;
     bool prev_sim_running = sim_running;
 
-    simulation.set_time_scale(time_scale);
-    simulation.set_barnes_hut_factor(barnes_hut_factor);
-    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
-
-    simulation.init();
-
-    exit(0);
+//    simulation.set_time_scale(time_scale);
+//    simulation.set_barnes_hut_factor(barnes_hut_factor);
+//    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
+//
+//    simulation.init();
+//
+//    exit(0);
 
     // render loop
     // -----------
