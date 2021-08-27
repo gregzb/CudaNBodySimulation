@@ -13,7 +13,7 @@ private:
     GLuint shader_id;
 
 public:
-    shader(std::string file_path) {
+    shader(const std::string &file_path) {
         std::string contents = fileToString(file_path);
 
         shader_id = glCreateShader(shader_type);
@@ -34,11 +34,11 @@ public:
         }
     }
 
-    GLuint get_id() const {
+    inline GLuint get_id() const {
         return shader_id;
     }
 
-    void release() {
+    inline void release() {
         glDeleteShader(shader_id);
     }
 };

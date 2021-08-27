@@ -157,6 +157,28 @@ void initBodies(std::vector<body> &bodies) {
     }
 }
 
+void imgui_setup(GLFWwindow* window) {
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 460");
+}
+
+shader_program make_shader_program(const std::string &vertex_shader_file, const std::string &fragment_shader_file) {
+    shader<GL_VERTEX_SHADER> vertex_shader(vertex_shader_file);
+    shader<GL_FRAGMENT_SHADER> fragment_shader(fragment_shader_file);
+    shader_program shader_prog({vertex_shader.get_id(), fragment_shader.get_id()});
+    vertex_shader.release();
+    fragment_shader.release();
+
+    return shader_prog;
+}
+
 int main()
 {
     feenableexcept(FE_INVALID | FE_OVERFLOW);
@@ -178,39 +200,16 @@ int main()
         return -1;
     }
 
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    imgui_setup(window);
 
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 460");
-
-    shader<GL_VERTEX_SHADER> body_vertex_shader("shaders/body_vertex.glsl");
-    shader<GL_FRAGMENT_SHADER> body_fragment_shader("shaders/body_fragment.glsl");
-    shader_program body_shader({body_vertex_shader.get_id(), body_fragment_shader.get_id()});
-    body_vertex_shader.release();
-    body_fragment_shader.release();
-
+    shader_program body_shader = make_shader_program("shaders/body_vertex.glsl", "shaders/body_fragment.glsl");
     body_shader.add_uniform("model");
     body_shader.add_uniform("view");
     body_shader.add_uniform("projection");
     body_shader.add_uniform("normal_model_view");
     body_shader.add_uniform("light_pos");
 
-    shader<GL_VERTEX_SHADER> highlighter_vertex_shader("shaders/highlighter_vertex.glsl");
-    shader<GL_FRAGMENT_SHADER> highlighter_fragment_shader("shaders/highlighter_fragment.glsl");
-    shader_program highlighter_shader({highlighter_vertex_shader.get_id(), highlighter_fragment_shader.get_id()});
-    highlighter_vertex_shader.release();
-    highlighter_fragment_shader.release();
-
+    shader_program highlighter_shader = make_shader_program("shaders/highlighter_vertex.glsl", "shaders/highlighter_fragment.glsl");
     highlighter_shader.add_uniform("screen_size");
     highlighter_shader.add_uniform("highlight_center");
     highlighter_shader.add_uniform("radii");
@@ -259,11 +258,6 @@ int main()
     glBindVertexArray(0);
 
 
-
-    float time_scale = 0.1f;
-
-    nbody_simulation simulation(bodies, time_scale);
-
     unsigned int instance_buffer;
     glGenBuffers(1, &instance_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
@@ -291,6 +285,9 @@ int main()
     glBindVertexArray(0);
 
     enable_gl_settings();
+
+    float time_scale = 0.1f;
+    nbody_simulation simulation(bodies, time_scale);
 
     camera cam(glm::radians(60.0f), {0, 0, 0}, {0, 0, 0});
 
@@ -328,15 +325,10 @@ int main()
         }
 
         glfwPollEvents();
-        // glfwWaitEventsTimeout(0.015);
-        // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // ImGui::ShowDemoWindow();
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
         {
             ImGui::Begin("Simulation Control Panel");
 
