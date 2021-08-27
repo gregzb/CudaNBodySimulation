@@ -62,7 +62,7 @@ uint64_t nbody_simulation::get_key (float x, float y, float z) {
 
 void nbody_simulation::naive_cpu_calculate_accelerations() {
     const float G = 6.67430f*std::pow(10.0f, -11);
-    const float epsilon = 0.0000001f;
+    const float epsilon = 0.00001f;
 
     potential_energy = 0;
 
@@ -70,8 +70,8 @@ void nbody_simulation::naive_cpu_calculate_accelerations() {
     for (unsigned i = 0; i < bodies.size(); i++) {
         for (unsigned j = 0; j < bodies.size(); j++) {
             if (i == j) continue;
-            glm::vec3 r(bodies[j].pos-bodies[i].pos+epsilon);
-            glm::vec3 accel(glm::normalize(r)*G*bodies[j].mass/(glm::dot(r, r) ));
+            glm::vec3 r(bodies[j].pos-bodies[i].pos);
+            glm::vec3 accel(glm::normalize(r)*G*bodies[j].mass/(glm::dot(r, r) + epsilon));
             accelerations[i] += accel;
             if (j > i) {
                 potential_energy += (-G * bodies[i].mass * bodies[j].mass) / glm::length(r);

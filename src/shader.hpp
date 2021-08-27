@@ -13,8 +13,8 @@ private:
     GLuint shader_id;
 
 public:
-    shader(const std::string &file_path) {
-        std::string contents = fileToString(file_path);
+    inline shader(const std::string &file_path) {
+        std::string contents = file_to_string(file_path);
 
         shader_id = glCreateShader(shader_type);
 

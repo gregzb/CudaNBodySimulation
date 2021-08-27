@@ -28,17 +28,15 @@
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
-void process_input(GLFWwindow *window)
-{
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+void process_input(GLFWwindow *window) {
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
 // ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     // make sure the viewport matches the new window dimensions; note that width and 
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
@@ -46,7 +44,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     screen_height = height;
 }
 
-GLFWwindow* initialize_glfw() {
+GLFWwindow *initialize_glfw() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -55,9 +53,8 @@ GLFWwindow* initialize_glfw() {
 
     // glfw window creation
     // --------------------
-    GLFWwindow* window = glfwCreateWindow(screen_width, screen_height, "N-Body Simulation", NULL, NULL);
-    if (window == NULL)
-    {
+    GLFWwindow *window = glfwCreateWindow(screen_width, screen_height, "N-Body Simulation", NULL, NULL);
+    if (window == NULL) {
         glfwTerminate();
         return nullptr;
     }
@@ -66,7 +63,8 @@ GLFWwindow* initialize_glfw() {
     return window;
 }
 
-void init_sphere_buffers(unsigned int &VBO, unsigned int &VAO, unsigned int &EBO, const std::vector<vertex> &vertices, const std::vector<unsigned int> &indices) {
+void init_sphere_buffers(unsigned int &VBO, unsigned int &VAO, unsigned int &EBO, const std::vector<vertex> &vertices,
+                         const std::vector<unsigned int> &indices) {
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
@@ -75,18 +73,18 @@ void init_sphere_buffers(unsigned int &VBO, unsigned int &VAO, unsigned int &EBO
     glBindVertexArray(VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex)*vertices.size(), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*indices.size(), indices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indices.size(), indices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *) 0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)(sizeof(float)*3));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void *) (sizeof(float) * 3));
     glEnableVertexAttribArray(1);
 
     // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0); 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     // remember: do NOT unbind the EBO while a VAO is active as the bound element buffer object IS stored in the VAO; keep the EBO bound.
     //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -106,7 +104,7 @@ void enable_gl_settings() {
     // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 }
 
-// void initBodies(std::vector<body> &bodies) {
+// void init_bodies(std::vector<body> &bodies) {
 //     // std::random_device rd;
 //     // std::mt19937 gen(rd());
 //     std::mt19937 gen(0); // keep it reproducible for now
@@ -137,31 +135,64 @@ void enable_gl_settings() {
 //     }
 // }
 
-void initBodies(std::vector<body> &bodies) {
-    // std::random_device rd;
-    // std::mt19937 gen(rd());
+//void init_bodies(std::vector<body> &bodies) {
+//    std::mt19937 gen(0); // keep it reproducible for now
+//    std::uniform_real_distribution<float> radius_distrib(1, 2);
+//    std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
+//    std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
+//
+//    std::uniform_real_distribution<float> square_distrib(-0.4, 0.4);
+//
+//    glm::vec3 center(0, 0, 0);
+//    bodies.push_back({center, {0, 0, 0}, 10000000});
+//
+//    float initial_velocity_mag = 0.02;
+//
+//    for (int i = 0; i < 200000; i++) {
+//        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01f});
+//    }
+//}
+
+void add_circular_body_system(std::vector<body> &bodies, const glm::vec3 &center, const glm::vec3 &center_velocity,
+                              int num_orbiting) {
     std::mt19937 gen(0); // keep it reproducible for now
-    std::uniform_real_distribution<float> radius_distrib(1, 2);
-    std::uniform_real_distribution<float> phi_distrib(0, (float)M_PI);
-    std::uniform_real_distribution<float> theta_distrib(0, (float)M_PI*2);
+    std::uniform_real_distribution<float> radius_distrib(0.4, 1.8);
+    std::uniform_real_distribution<float> theta_distrib(0, (float) M_PI * 2);
 
-    std::uniform_real_distribution<float> square_distrib(-0.4, 0.4);
+    std::uniform_real_distribution<float> square_distrib(-0.1, 0.1);
 
-    glm::vec3 center(0, 0, 0);
-    bodies.push_back({center, {0, 0, 0}, 10000000});
+    bodies.push_back({center, center_velocity, 10000000});
 
-    float initial_velocity_mag = 0.02;
+    float initial_velocity_mag_multiplier = 0.02;
 
-    for (int i = 0; i < 200000; i++) {
-        bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01});
+    for (int i = 0; i < num_orbiting; i++) {
+        float r = radius_distrib(gen);
+        float theta = theta_distrib(gen);
+
+        float x_pos = r * std::cos(theta);
+        float y_pos = r * std::sin(theta);
+        float z_pos = square_distrib(gen);
+
+        glm::vec3 pos{x_pos, y_pos, z_pos};
+        glm::vec3 velocity{-y_pos, x_pos, 0};
+        velocity = glm::normalize(velocity);
+        velocity *= initial_velocity_mag_multiplier * std::pow(2.6 - r, 0.6f);
+
+        bodies.push_back({center + pos, velocity, 0.01f});
     }
 }
 
-void imgui_setup(GLFWwindow* window) {
+void init_bodies(std::vector<body> &bodies) {
+    add_circular_body_system(bodies, {0, -4, -0.1}, {0.006, 0, 0}, 75000);
+    add_circular_body_system(bodies, {0, 4, 0.1}, {-0.006, 0, 0}, 75000);
+}
+
+void imgui_setup(GLFWwindow *window) {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO &io = ImGui::GetIO();
+    (void) io;
 
     ImGui::StyleColorsDark();
 
@@ -179,14 +210,13 @@ shader_program make_shader_program(const std::string &vertex_shader_file, const 
     return shader_prog;
 }
 
-int main()
-{
+int main() {
     feenableexcept(FE_INVALID | FE_OVERFLOW);
     std::cout << "Starting application with cwd: " << std::filesystem::current_path() << std::endl;
 
     glfwInit();
 
-    GLFWwindow* window;
+    GLFWwindow *window;
     if (!(window = initialize_glfw())) {
         std::cout << "Failed to create GLFW window" << std::endl;
         return -1;
@@ -194,8 +224,7 @@ int main()
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -209,7 +238,8 @@ int main()
     body_shader.add_uniform("normal_model_view");
     body_shader.add_uniform("light_pos");
 
-    shader_program highlighter_shader = make_shader_program("shaders/highlighter_vertex.glsl", "shaders/highlighter_fragment.glsl");
+    shader_program highlighter_shader = make_shader_program("shaders/highlighter_vertex.glsl",
+                                                            "shaders/highlighter_fragment.glsl");
     highlighter_shader.add_uniform("screen_size");
     highlighter_shader.add_uniform("highlight_center");
     highlighter_shader.add_uniform("radii");
@@ -230,7 +260,7 @@ int main()
     init_sphere_buffers(VBO, VAO, EBO, vertices, indices);
 
     std::vector<body> bodies;
-    initBodies(bodies);
+    init_bodies(bodies);
 
     // std::vector<glm::vec2> screen_vertices{{-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
     std::vector<float> screen_vertices{-1, -1, 1, -1, 1, 1, -1, 1};
@@ -245,15 +275,16 @@ int main()
     glBindVertexArray(screen_VAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, screen_VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*screen_vertices.size(), screen_vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * screen_vertices.size(), screen_vertices.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, screen_EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int)*screen_indices.size(), screen_indices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * screen_indices.size(), screen_indices.data(),
+                 GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float)*2, (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, (void *) 0);
     glEnableVertexAttribArray(0);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0); 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindVertexArray(0);
 
@@ -262,7 +293,7 @@ int main()
     glGenBuffers(1, &instance_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, instance_buffer);
     std::vector<float> dat;
-    for(const auto &body : bodies) {
+    for (const auto &body : bodies) {
         dat.push_back(body.pos.x);
         dat.push_back(body.pos.y);
         dat.push_back(body.pos.z);
@@ -275,11 +306,11 @@ int main()
     glBindVertexArray(VAO);
 
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)0);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void *) 0);
     glVertexAttribDivisor(2, 1);
 
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(float)*6, (void*)(sizeof(float)*3));
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void *) (sizeof(float) * 3));
     glVertexAttribDivisor(3, 1);
 
     glBindVertexArray(0);
@@ -298,7 +329,7 @@ int main()
     // std::random_device rd; // obtain a random number from hardware
     // std::mt19937 gen(rd()); // seed the generator
     std::mt19937 gen(0);
-    std::uniform_int_distribution<> distr(0, bodies.size()-1); // define the range
+    std::uniform_int_distribution<> distr(0, bodies.size() - 1); // define the range
 
     int selected_body_idx = -1;
 
@@ -315,13 +346,12 @@ int main()
 
     // render loop
     // -----------
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         double newTime = glfwGetTime();
-        double dt = newTime-lastTime;
-        while(dt < (1/90.0)) {
+        double dt = newTime - lastTime;
+        while (dt < (1 / 90.0)) {
             newTime = glfwGetTime();
-            dt = newTime-lastTime;
+            dt = newTime - lastTime;
         }
 
         glfwPollEvents();
@@ -332,27 +362,33 @@ int main()
         {
             ImGui::Begin("Simulation Control Panel");
 
-            if (ImGui::CollapsingHeader("Simulation Settings"))
-            {
+            if (ImGui::CollapsingHeader("Simulation Settings")) {
                 ImGui::SliderFloat("Time Step", &time_scale, 0.001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
                 ImGui::SliderFloat("Body Size", &body_size, 0.1f, 10.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
 
                 ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-                ImGui::RadioButton("CPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU)); ImGui::SameLine();
-                ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
-                ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
-                ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
+                ImGui::RadioButton("CPU - Naive", &backend_int,
+                                   static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU));
+                ImGui::SameLine();
+                ImGui::RadioButton("CPU - Barnes Hut", &backend_int,
+                                   static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
+                ImGui::RadioButton("GPU - Naive", &backend_int,
+                                   static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU));
+                ImGui::SameLine();
+                ImGui::RadioButton("GPU - Barnes Hut", &backend_int,
+                                   static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
                 ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.1f, 5.0f, "%.2f");
             }
 
             ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
-            if (ImGui::CollapsingHeader("Highlight Settings"))
-            {
-                ImGui::ColorEdit4("Highlight Color", (float*)&highlight_color);
-                ImGui::SliderFloat("Inner Radius", &highlight_radii.x, 0.0f, 0.25f, "%.3f", ImGuiSliderFlags_Logarithmic);
-                ImGui::SliderFloat("Outer Radius", &highlight_radii.y, 0.0f, 0.25f, "%.3f", ImGuiSliderFlags_Logarithmic);
+            if (ImGui::CollapsingHeader("Highlight Settings")) {
+                ImGui::ColorEdit4("Highlight Color", (float *) &highlight_color);
+                ImGui::SliderFloat("Inner Radius", &highlight_radii.x, 0.0f, 0.25f, "%.3f",
+                                   ImGuiSliderFlags_Logarithmic);
+                ImGui::SliderFloat("Outer Radius", &highlight_radii.y, 0.0f, 0.25f, "%.3f",
+                                   ImGuiSliderFlags_Logarithmic);
 
                 if (ImGui::Button("Highlight Random Body")) {
                     selected_body_idx = distr(gen);
@@ -371,7 +407,8 @@ int main()
                 sim_running = !sim_running;
             }
 
-            ImGui::Text("Application averaging %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Text("Application averaging %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate,
+                        ImGui::GetIO().Framerate);
             ImGui::End();
         }
 
@@ -384,7 +421,7 @@ int main()
 
         body_shader.use();
 
-        cam.set_pos({0, 0, 5.5});
+        cam.set_pos({0, 0, 9});
 //        cam.set_pos({glm::sin(newTime) * 5.5f, 0, glm::cos(newTime)*5.5f});
 //        cam.set_target({0, 0, 0});
 
@@ -397,9 +434,10 @@ int main()
 
         body_shader.set_mvp(model, view, projection);
         glm::mat3 normal_model_view = glm::transpose(glm::inverse(glm::mat3(cam.get_view_matrix() * model)));
-        glUniformMatrix3fv(body_shader.get_uniform_location("normal_model_view"), 1, GL_FALSE, &normal_model_view[0][0]);
+        glUniformMatrix3fv(body_shader.get_uniform_location("normal_model_view"), 1, GL_FALSE,
+                           &normal_model_view[0][0]);
 
-        glm::vec3 light_world_pos {0, 8, 8};
+        glm::vec3 light_world_pos{0, 8, 8};
         glm::vec3 light_pos = glm::vec3(view * glm::vec4(light_world_pos, 1.0f));
         glUniform3f(body_shader.get_uniform_location("light_pos"), light_pos.x, light_pos.y, light_pos.z);
 
@@ -428,12 +466,12 @@ int main()
             dat.push_back(body.pos.y);
             dat.push_back(body.pos.z);
             float mag = glm::length(body.vel);
-            float mixer = glm::clamp(mag*25, 0.0f, 1.0f);
+            float mixer = glm::clamp(mag * 25, 0.0f, 1.0f);
             glm::vec3 color(glm::mix(blue, red, mixer));
             if (i == selected_body_idx) {
-                dat.push_back(highlight_color.x*1.25f);
-                dat.push_back(highlight_color.y*1.25f);
-                dat.push_back(highlight_color.z*1.25f);
+                dat.push_back(highlight_color.x * 1.25f);
+                dat.push_back(highlight_color.y * 1.25f);
+                dat.push_back(highlight_color.z * 1.25f);
             } else {
                 dat.push_back(color.r);
                 dat.push_back(color.g);
@@ -442,7 +480,7 @@ int main()
         }
         glBufferData(GL_ARRAY_BUFFER, dat.size() * sizeof(float), dat.data(), GL_DYNAMIC_DRAW);
 
-        glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void*) 0, dat.size()/6);
+        glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, (void *) 0, dat.size() / 6);
 
         glm::vec4 target_location{-2, -2, 0, 1};
         if (selected_body_idx >= 0) {
@@ -454,10 +492,11 @@ int main()
         glUniform2f(highlighter_shader.get_uniform_location("screen_size"), screen_width, screen_height);
         glUniform2f(highlighter_shader.get_uniform_location("highlight_center"), target_location.x, target_location.y);
         glUniform2f(highlighter_shader.get_uniform_location("radii"), highlight_radii.x, highlight_radii.y);
-        glUniform4f(highlighter_shader.get_uniform_location("highlight_color"), highlight_color.x, highlight_color.y, highlight_color.z, highlight_color.w);
+        glUniform4f(highlighter_shader.get_uniform_location("highlight_color"), highlight_color.x, highlight_color.y,
+                    highlight_color.z, highlight_color.w);
         glBindVertexArray(screen_VAO);
         glClear(GL_DEPTH_BUFFER_BIT);
-        glDrawElements(GL_TRIANGLES, screen_indices.size(), GL_UNSIGNED_INT, (void*) 0);
+        glDrawElements(GL_TRIANGLES, screen_indices.size(), GL_UNSIGNED_INT, (void *) 0);
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -13,7 +13,7 @@ inline std::ostream& operator<<(std::ostream &stream, const glm::vec3 &vec) {
     return stream;
 }
 
-inline std::string fileToString(std::string file_path)
+inline std::string file_to_string(const std::string &file_path)
 {
     std::ifstream file(file_path);
     std::string contents;

@@ -18,7 +18,7 @@ private:
     std::unordered_map<std::string, GLint> uniforms;
 
 public:
-    shader_program(std::vector<GLuint> shader_ids) : shader_program_id(glCreateProgram())
+    shader_program(const std::vector<GLuint> &shader_ids) : shader_program_id(glCreateProgram())
     {
         for (auto shader_id : shader_ids)
         {
@@ -37,24 +37,24 @@ public:
         }
     }
 
-    void use()
+    inline void use() const
     {
         glUseProgram(shader_program_id);
     }
 
-    GLuint get_id() const {
+    inline GLuint get_id() const {
         return shader_program_id;
     }
 
-    void add_uniform(const std::string& uniform_name) {
+    inline void add_uniform(const std::string& uniform_name) {
         uniforms[uniform_name] = glGetUniformLocation(get_id(), uniform_name.c_str());
     }
 
-    GLint get_uniform_location(const std::string& uniform_name) const {
+    inline GLint get_uniform_location(const std::string& uniform_name) const {
         return uniforms.at(uniform_name);
     }
 
-    void set_mvp(const glm::mat4 &model, const glm::mat4 &view, const glm::mat4 &projection) {
+    inline void set_mvp(const glm::mat4 &model, const glm::mat4 &view, const glm::mat4 &projection) {
         glUniformMatrix4fv(get_uniform_location("model"), 1, GL_FALSE, &model[0][0]);
         glUniformMatrix4fv(get_uniform_location("view"), 1, GL_FALSE, &view[0][0]);
         glUniformMatrix4fv(get_uniform_location("projection"), 1, GL_FALSE, &projection[0][0]);

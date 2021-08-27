@@ -214,7 +214,7 @@ struct device_calc_acceleration {
         int tree_depth = thrust::get<8>(t);
 
         const float G = 6.67430f * std::pow(10.0f, -11.0f);
-        const float epsilon = 0.000001f;
+        const float epsilon = 0.01f;
 
         const body &curr_body = bodies[focus_idx];
         int write_idx = idxes[focus_idx];
