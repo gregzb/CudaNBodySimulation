@@ -84,11 +84,6 @@ void nbody_simulation::add_layer(std::vector<node> &tree, const std::vector<uint
     constexpr uint64_t all_ones_last = 0b1111111111111111111111111111111111111111111111111111111111111110ull;
     constexpr uint64_t three_mask = 0b111ull;
 
-    auto lower_bound_linear = [](std::vector<uint64_t>::const_iterator start, std::vector<uint64_t>::const_iterator end, uint64_t target) {
-        for (; start < end && target < *start; start++);
-        return start;
-    };  // does this throw an error???
-
     int stage = tree.size();
     int sec_last = stage-1;
 
@@ -114,7 +109,6 @@ void nbody_simulation::add_layer(std::vector<node> &tree, const std::vector<uint
             uint64_t search_value = base_value | extension;
             uint64_t search_mask = base_mask | extension_mask;
 
-//            auto found = last_idx - first_idx + 1 > 10000000 ? std::lower_bound(keys.begin()+first_idx, keys.begin()+last_idx+1, search_value) : lower_bound_linear(first_idx, last_idx+1, search_value);
             auto found = std::lower_bound(keys.begin()+first_idx, keys.begin()+last_idx+1, search_value);
             int found_idx = found-keys.begin();
             if (found == keys.begin()+last_idx+1) {
@@ -267,8 +261,6 @@ void nbody_simulation::barnes_hut_cpu_calculate_accelerations() {
     tree[0].start_index[0] = 0;
     tree[0].end_index[0] = num_bodies-1;
     tree[0].children_index[0] = 1;
-
-    //make new later
 
     for (int i = 0; i < tree_depth; i++) {
         add_layer(tree, keys);
