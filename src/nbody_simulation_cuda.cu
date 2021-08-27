@@ -375,24 +375,27 @@ struct device_calc_acceleration {
             int layer;
             int node_idx;
         };
-        stack_item stack[20];
+        stack_item stack[64];
         int stack_size = 0;
 
-        auto push_item = [&stack, &stack_size](stack_item item) {
-            stack[stack_size] = item;
-            stack_size++;
-        };
+//        auto push_item = [](stack_item *stack, int &stack_size, stack_item item) {
+//            stack[stack_size] = item;
+//            stack_size++;
+//        };
+//
+//        auto pop_item = [](stack_item *stack, int &stack_size) {
+//            stack_size--;
+//            return stack[stack_size];
+//        };
 
-        auto pop_item = [&stack, &stack_size]() {
-            stack_size--;
-            return stack[stack_size];
-        };
-
-        push_item({rect_size, 0, 0});
+//        push_item(stack, stack_size, {rect_size, 0, 0});
+        stack[stack_size] = {rect_size, 0, 0};
+        stack_size++;
 
         glm::vec3 tmp_total_acceleration{0, 0, 0};
         while (stack_size > 0) {
-            auto item = pop_item();
+            stack_size--;
+            auto item = stack[stack_size];
             int start = tree[item.layer].start_index[item.node_idx];
             int end = tree[item.layer].end_index[item.node_idx];
 
@@ -429,7 +432,13 @@ struct device_calc_acceleration {
                         int child_idx = children_base_idx + rel_child;
 
                         if (tree[item.layer+1].start_index[child_idx] != -1) {
-                            push_item({item.size/2, item.layer+1, child_idx});
+                            stack_item new_item{item.size/2, item.layer+1, child_idx};
+//                            push_item(stack, stack_size, new_item);
+                            if (stack_size >= 64) {
+                                printf("yikes\n");
+                            }
+                            stack[stack_size] = new_item;
+                            stack_size++;
                         }
                     }
                 }
@@ -472,11 +481,11 @@ void nbody_simulation::barnes_hut_gpu_calculate_accelerations() {
 //    cudaMemGetInfo(&free,&total);
 //    printf("%d MB free of total %d MB\n",free/1024/1024,total/1024/1024);
 
-    static bool called = false;
-    if (!called) {
-        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024ll*1024ll*1024ll*1ll); //set limit to 1gb
-    }
-    called = true;
+//    static bool called = false;
+//    if (!called) {
+//        cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024ll*1024ll*1024ll*1ll); //set limit to 1gb
+//    }
+//    called = true;
 
     int num_bodies = bodies.size();
 

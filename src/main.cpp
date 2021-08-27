@@ -152,7 +152,7 @@ void initBodies(std::vector<body> &bodies) {
 
     float initial_velocity_mag = 0.02;
 
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 200000; i++) {
         bodies.push_back({{square_distrib(gen)+1.4, square_distrib(gen), square_distrib(gen)}, {0, initial_velocity_mag, 0}, 0.01});
     }
 }
@@ -311,18 +311,10 @@ int main()
     float body_size = 1.0f;
 
     int backend_int = static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_CPU);
-    float barnes_hut_factor = 0.7f;
+    float barnes_hut_factor = 1.0f;
 
     bool sim_running = false;
     bool prev_sim_running = sim_running;
-
-//    simulation.set_time_scale(time_scale);
-//    simulation.set_barnes_hut_factor(barnes_hut_factor);
-//    simulation.set_backend(nbody_simulation::CalculationBackend::BARNES_HUT_GPU);
-//
-//    simulation.init();
-//
-//    exit(0);
 
     // render loop
     // -----------
@@ -359,7 +351,7 @@ int main()
                 ImGui::RadioButton("CPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_CPU));
                 ImGui::RadioButton("GPU - Naive", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::NAIVE_GPU)); ImGui::SameLine();
                 ImGui::RadioButton("GPU - Barnes Hut", &backend_int, static_cast<int>(nbody_simulation::CalculationBackend::BARNES_HUT_GPU));
-                ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.0f, 5.0f, "%.2f");
+                ImGui::SliderFloat("Barnes Hut Factor", &barnes_hut_factor, 0.1f, 5.0f, "%.2f");
             }
 
             ImGui::Dummy(ImVec2(0.0f, 5.0f));
